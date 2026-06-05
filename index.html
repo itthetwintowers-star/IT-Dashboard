@@ -4616,20 +4616,26 @@ function loadGASSettings() {
 
 // ── Open / close settings modal ──
 function openSettings() {
-  document.getElementById('settings-modal').classList.add('show');
-  const urlInput = document.getElementById('gas-url-input');
-  if (urlInput) urlInput.value = GAS.url;
-  const intSel = document.getElementById('refresh-interval-sel');
-  if (intSel) intSel.value = String(GAS.interval);
-  updateSettingsUI();
+    let settingsModal = document.getElementById('settings-modal');
+    
+    // ถ้าหาไม่เจอ ให้ลองสร้างขึ้นมาใหม่ (ป้องกันการโดน innerHTML เขียนทับ)
+    if (!settingsModal) {
+        settingsModal = document.createElement('div');
+        settingsModal.id = 'settings-modal';
+        settingsModal.style.display = 'none'; // ตั้งค่าเริ่มต้น
+        settingsModal.innerHTML = `
+            <div class="settings-box">
+                <h3>⚙️ การตั้งค่า</h3>
+                <button onclick="document.getElementById('settings-modal').style.display='none'">ปิด</button>
+            </div>
+        `;
+        document.body.appendChild(settingsModal);
+    }
+    
+    // แสดงผล Modal
+    settingsModal.style.display = 'flex';
+    settingsModal.classList.add('show');
 }
-function closeSettings() {
-  document.getElementById('settings-modal').classList.remove('show');
-}
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && document.getElementById('settings-modal').classList.contains('show'))
-    closeSettings();
-});
 
 // ── Test & Connect button ──
 async function testAndConnect() {
