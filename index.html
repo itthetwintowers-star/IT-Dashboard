@@ -4616,15 +4616,44 @@ function loadGASSettings() {
 
 // ── Open / close settings modal ──
 function openSettings() {
-    const settingsModal = document.getElementById('settings-modal');
-    
-    // Check if the modal exists before manipulating it
-    if (settingsModal) {
-        settingsModal.classList.add('show');
-    } else {
-        console.error("Error: Element 'settings-modal' was not found in the DOM.");
-        // Optional: Trigger a console warning or try to re-initialize the modal
-    }
+  document.getElementById('settings-modal').classList.add('show');
+  const urlInput = document.getElementById('gas-url-input');
+  if (urlInput) urlInput.value = GAS.url;
+  const intSel = document.getElementById('refresh-interval-sel');
+  if (intSel) intSel.value = String(GAS.interval);
+  updateSettingsUI();
+}
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('show');
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('settings-modal').classList.contains('show'))
+    closeSettings();
+});
+
+// ── Test & Connect button ──
+async function testAndConnect() {
+  const url = document.getElementById('gas-url-input')?.value?.trim();
+  const interval = parseInt(document.getElementById('refresh-interval-sel')?.value || '5000');
+  if (!url) { alert('กรุณาใส่ URL ของ Apps Script'); return; }
+
+  GAS.url = url;
+  GAS.interval = interval;
+  setConnStatus('testing', 'กำลังทดสอบการเชื่อมต่อ...');
+
+  const ok = await fetchFromGAS(false);
+
+  if (ok) {
+    // Save to localStorage
+    try { localStorage.setItem('itdash_gas_settings', JSON.stringify({ url, interval })); } catch(e) {}
+    GAS.connected = true;
+    startGASTimer();
+    updateSettingsUI();
+    // Update gear button to show connected
+    const gb = document.getElementById('gear-btn');
+    if (gb) { gb.style.color = 'var(--green)'; gb.title = 'เชื่อมต่อแล้ว ⚙️'; }
+    setTimeout(closeSettings, 1200);
+  }
 }
 
 // ── Manual fetch now ──
