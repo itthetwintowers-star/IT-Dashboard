@@ -4616,25 +4616,36 @@ function loadGASSettings() {
 
 // ── Open / close settings modal ──
 function openSettings() {
-    let settingsModal = document.getElementById('settings-modal');
+    // 1. ค้นหา Element ในหน้าจอ
+    let modal = document.getElementById('settings-modal');
     
-    // ถ้าหาไม่เจอ ให้ลองสร้างขึ้นมาใหม่ (ป้องกันการโดน innerHTML เขียนทับ)
-    if (!settingsModal) {
-        settingsModal = document.createElement('div');
-        settingsModal.id = 'settings-modal';
-        settingsModal.style.display = 'none'; // ตั้งค่าเริ่มต้น
-        settingsModal.innerHTML = `
+    // 2. ถ้าหาไม่เจอ ให้สร้างมันขึ้นมาใหม่ตรงนั้นเลย
+    if (!modal) {
+        console.warn("Modal หายไป! กำลังสร้างขึ้นใหม่...");
+        modal = document.createElement('div');
+        modal.id = 'settings-modal';
+        // ใส่ HTML ของ Modal ลงไป (ปรับให้ตรงกับสไตล์ที่คุณเคยเขียน)
+        modal.innerHTML = `
             <div class="settings-box">
-                <h3>⚙️ การตั้งค่า</h3>
-                <button onclick="document.getElementById('settings-modal').style.display='none'">ปิด</button>
+                <div class="settings-head"><h3>⚙️ Settings</h3></div>
+                <div class="settings-body">
+                    </div>
+                <button onclick="closeSettings()">ปิด</button>
             </div>
         `;
-        document.body.appendChild(settingsModal);
+        document.body.appendChild(modal);
     }
     
-    // แสดงผล Modal
-    settingsModal.style.display = 'flex';
-    settingsModal.classList.add('show');
+    // 3. แสดง Modal (ใช้ classList ตามที่คุณเขียนไว้เดิม)
+    modal.classList.add('show');
+}
+
+// เพิ่มฟังก์ชันปิด Modal
+function closeSettings() {
+    const modal = document.getElementById('settings-modal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
 }
 
 // ── Test & Connect button ──
