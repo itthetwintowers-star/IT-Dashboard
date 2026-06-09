@@ -1101,12 +1101,15 @@ function calcJobTime(startStr, closeStr) {
 function fmtJobTime(startStr, closeStr) {
   const hrs = calcJobTime(startStr, closeStr);
   if (hrs === null) return '–';
-  if (hrs === 0)    return '< 1 นาที';
+  if (hrs === 0)    return '<1 นาที';
   const h = Math.floor(hrs);
   const m = Math.round((hrs - h) * 60);
-  if (h === 0) return `${m} นาที`;
-  if (m === 0) return `${h} ชม.`;
-  return `${h} ชม. ${m} นาที`;
+  // Detect overnight: close < start by more than 10 min
+  const parse = s => { const p=String(s).split(':'); return parseInt(p[0])*3600+parseInt(p[1])*60+(parseInt(p[2])||0); };
+  const ss = parse(startStr||''), cs = parse(closeStr||'');
+  const overnight = cs - ss < -600;
+  const timeStr = h===0 ? `${m} นาที` : m===0 ? `${h} ชม.` : `${h} ชม. ${m} นาที`;
+  return overnight ? `${timeStr} 🌙` : timeStr;
 }
 
 function renderITJobs(){
@@ -1130,6 +1133,7 @@ function renderITJobs(){
       ${kpiCard('Closed',closed.toLocaleString(),'✅','var(--green-soft)','var(--green)','var(--green)',`${total?((closed/total)*100).toFixed(1):0}%`)}
       ${kpiCard('In Progress',inProg.toLocaleString(),'⚙️','var(--amber-soft)','var(--amber)','var(--amber)','กำลังดำเนินการ')}
       ${kpiCard('Training Hours',totalHrs.toFixed(1)+' hrs','🎓','var(--purple-soft)','var(--purple)','var(--purple)',`${trainingCount} sessions`)}
+      ${avgJobDuration?kpiCard('เวลาเฉลี่ย/งาน',avgJobDuration,'⏱️','var(--teal-soft)','var(--teal)','var(--teal)','ชม.'):''}
     </div>
 
     <!-- Charts row -->
@@ -1696,6 +1700,15 @@ function anlTab(tab, btn){
     const totalHrs=hrs.reduce((a,b)=>a+b,0);
     const trainingCount=trainingJobs.length;
 
+    // Avg duration from FNStartTime → FNClosedTime
+    const jobDurations = jobs.map(r=>{
+      if(!r.FNStartTime||!r.FNClosedTime) return null;
+      return calcJobTime(r.FNStartTime, r.FNClosedTime);
+    }).filter(v=>v!==null&&v>0);
+    const avgJobDuration = jobDurations.length
+      ? (jobDurations.reduce((a,b)=>a+b,0)/jobDurations.length).toFixed(1)
+      : null;
+
     const jobTypes=ALL_JOB_TYPES;
     const months=[...new Set(jobs.map(r=>(r.FDOpenDate||'').slice(0,7)).filter(v=>v&&v.length===7))].sort();
 
@@ -1964,10 +1977,18 @@ function exportCovCSV(){
     })();
     let rDone=0, rTotal=0;
     const cells = allMonths.map(ym=>{
-      const done = doneMap[t]&&doneMap[t][ym] ? [...doneMap[t][ym]].filter(id=>equipByType[t].has(id)).length : null;
-      if(done===null) return '–';
-      rDone+=done; rTotal+=total;
-      return Math.round((done/total)*100)+'% ('+done+'/'+total+')';
+      const bucket = doneMap[t]&&doneMap[t][ym];
+      if(!bucket) return '–';
+      // Historical count for this month
+      const regMap = equipRegDates[t]||{};
+      const allIds = equipByType[t]?[...equipByType[t]]:[];
+      const histIds = allIds.filter(id=>{ const r=regMap[id]; return !r||r<=ym; });
+      const histSet = new Set(histIds);
+      const mTotal  = histIds.length;
+      const mDone   = [...bucket.inMain].filter(id=>histSet.has(id)).length;
+      if(!mTotal) return '–';
+      rDone+=mDone; rTotal+=mTotal;
+      return Math.round((mDone/mTotal)*100)+'% ('+mDone+'/'+mTotal+')';
     });
     const rowPct = rTotal>0 ? Math.round((rDone/rTotal)*100)+'%' : '–';
     return [t, iv, total, ...cells, rowPct];
@@ -2896,7 +2917,8 @@ function renderPMCoverage() {
 
   // ── 1. Equipment registry (PM_MAIN_History) ──
   const pmMain = SHEETS.PM_MAIN_History || [];
-  const equipByType   = {};   // type → Set<hwId>  (official registered list)
+  const equipByType   = {};   // type → Set<hwId>  (all registered, current total)
+  const equipRegDates = {};   // type → { hwId: 'YYYY-MM' } registration month
   const typeInterval  = {};   // type → days
   const overdueByType = {};   // type → [{id,name,nextPM,daysPast}]
   const nextPMByType  = {};   // type → earliest nextPM date string
@@ -2907,7 +2929,15 @@ function renderPMCoverage() {
     if (!id || EXCLUDE_TYPES.includes(t)) return;
     if (!equipByType[t])   equipByType[t]   = new Set();
     if (!overdueByType[t]) overdueByType[t] = [];
-    equipByType[t].add(String(id).trim());
+    if (!equipRegDates[t]) equipRegDates[t] = {};
+    const idStr = String(id).trim();
+    equipByType[t].add(idStr);
+    // Track registration month from FDDateCreatedM
+    const regRaw = r.FDDateCreatedM || r.FDOpenDateM || '';
+    const regYM  = String(regRaw).slice(0, 7); // YYYY-MM
+    if (regYM && /^\d{4}-\d{2}$/.test(regYM)) {
+      equipRegDates[t][idStr] = regYM;
+    }
     const iv = parseInt(r.PMIntervalDays);
     if (!isNaN(iv) && iv > 0) typeInterval[t] = iv;
     // Check overdue
@@ -2958,23 +2988,39 @@ function renderPMCoverage() {
   }
 
   // ── 4. Cell computation ──
-  // total = UNION of MAIN registered + extra done this month
-  //         ensures done never exceeds total (handles new unregistered equipment)
+  // total = equipment registered ON OR BEFORE this month (historical count)
+  // This ensures March shows 48/48 not 48/50 when 2 PCs were added in April
+  function equipCountForMonth(type, ym) {
+    const regMap = equipRegDates[type] || {};
+    const allIds = equipByType[type] ? [...equipByType[type]] : [];
+    // Count IDs whose registration month <= ym (or no reg date = assume always existed)
+    return allIds.filter(id => {
+      const reg = regMap[id];
+      if (!reg) return true;          // no reg date → always count
+      return reg <= ym;               // registered on or before this month
+    });
+  }
+
   function getCell(type, ym) {
-    const mainCount = equipByType[type] ? equipByType[type].size : 0;
-    const bucket    = doneMap[type] && doneMap[type][ym];
+    const bucket = doneMap[type] && doneMap[type][ym];
     if (!bucket) return null; // no activity → show –
 
-    const done    = bucket.inMain.size;
-    const extra   = bucket.extra.size;
-    // total = max(registered, actually done) so done never exceeds total
-    const total   = Math.max(mainCount, done + extra);
-    const missing = equipByType[type]
-      ? [...equipByType[type]].filter(id => !bucket.inMain.has(id))
-      : [];
-    // Pct based on official MAIN list: done_in_main / max(mainCount, done+extra)
+    // Historical equipment list for this month
+    const historicIds = equipCountForMonth(type, ym);
+    const historicSet = new Set(historicIds);
+    const total = historicIds.length;
+
+    // done = how many of the historic list were actually PM'd
+    const done  = [...bucket.inMain].filter(id => historicSet.has(id)).length;
+    // extra = PM'd but not in historic list (registered after this month, or unregistered)
+    const extraIds = [...bucket.inMain].filter(id => !historicSet.has(id));
+    const extra = extraIds.length + bucket.extra.size;
+
+    // missing = historic equipment not PM'd this month
+    const missing = historicIds.filter(id => !bucket.inMain.has(id));
+
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-    return { total, done, extra, pct, missing, mainCount };
+    return { total, done, extra, pct, missing, historicIds };
   }
 
   // ── 5. Per-type streak (consecutive months at 100%) ──
@@ -3277,7 +3323,7 @@ function renderPMCoverage() {
         <table style="width:100%;border-collapse:collapse;min-width:400px">
           <thead>
             <tr style="border-bottom:2px solid var(--border)">
-              <th style="padding:8px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--text2);min-width:190px">ประเภท · Interval</th>
+              <th style="padding:8px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--text2);min-width:190px" title="จำนวนอุปกรณ์ใช้ตามวันที่ลงทะเบียน (FDDateCreatedM) — เครื่องที่เพิ่งลงทะเบียนเดือนนี้จะนับเฉพาะเดือนนี้เป็นต้นไป">ประเภท · Interval ⓘ</th>
               ${headerRow}
               <th style="padding:6px 10px;font-size:11px;font-weight:700;color:var(--text2);border-left:2px solid var(--border);text-align:center;white-space:nowrap">รวม</th>
             </tr>
@@ -4541,7 +4587,7 @@ function renderMaintenanceSection(){
 
 // GAS connection state
 let GAS = {
-  url: 'https://script.google.com/macros/s/AKfycbyef43v1l7BFJ7MyWz4NVIpW_BxHrPmrmcL0Pk1YLKC0rnF2E5nefWyhFRCzB03kmhO/exec',  // pre-configured
+  url: 'https://script.google.com/macros/s/AKfycbyef43v1l7BFJ7MyWz4NVIpW_BxHrPmrmcL0Pk1YLKC0rnF2E5nefWyhFRCzB03kmhO/exec',
   connected: false,
   lastSync: null,
   syncTimer: null,
