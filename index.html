@@ -5183,7 +5183,7 @@ function openMonthlyReport(){
     </div>
     <div class="modal-body">
       <div class="dropzone" id="dropzone" ondragover="dzDragOver(event)" ondragleave="dzDragLeave()" ondrop="dzDrop(event)">
-        <input type="file" id="file-input" accept=".xlsx,.xls" onchange="handleImportFile(this.files[0])">
+        <input type="file" id="file-input" accept=".xlsx,.xls" onchange="handleFileSelect(this.files[0])">
         <div style="font-size:2rem;margin-bottom:8px">📊</div>
         <div style="font-weight:600;margin-bottom:4px">ลากไฟล์มาวาง หรือคลิกเลือกไฟล์</div>
         <div style="font-size:12px;color:var(--text3)">.xlsx / .xls เท่านั้น</div>
