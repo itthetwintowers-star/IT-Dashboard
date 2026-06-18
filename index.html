@@ -411,8 +411,6 @@ td{padding:10px 14px;color:var(--text);max-width:220px;overflow:hidden;text-over
 .star{font-size:16px}
 /* ── Alert popup ── */
 #alert-popup{position:fixed;top:0;left:0;right:0;z-index:400;display:none}
-.alert-panel{background:var(--surface);border-bottom:1px solid var(--border);box-shadow:0 4px 20px rgba(0,0,0,.15);padding:16px 20px;animation:slideDown .3s ease}
-@keyframes slideDown{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:none}}
 .alert-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .alert-icon{font-size:20px}
 .alert-title{font-size:14px;font-weight:600;color:var(--text);flex:1}
@@ -511,11 +509,7 @@ td{padding:10px 14px;color:var(--text);max-width:220px;overflow:hidden;text-over
   <!-- Smart Alert Popup -->
   <div id="alert-popup">
     <div class="alert-panel">
-      <div class="alert-head">
-        <span class="alert-icon">🔔</span>
-        <span class="alert-title" id="alert-title">PM Equipment แจ้งเตือน</span>
-        <button class="alert-close" onclick="closeAlert()">✕</button>
-      </div>
+      
       <div class="alert-grid" id="alert-grid"></div>
     </div>
   </div>
@@ -551,28 +545,15 @@ td{padding:10px 14px;color:var(--text);max-width:220px;overflow:hidden;text-over
         Analytics
       </button>
     </div>
-    <div class="s-div"></div>
     <div class="s-section">
       <div class="s-label">การบำรุงรักษา</div>
-      <button class="nav-item" onclick="nav('pm',this)">
-        <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="1.8"/><path d="M12 8v4l3 3" stroke-width="1.8" stroke-linecap="round"/></svg>
-        PM Equipment
-        <span class="nav-badge" id="nb-pm" style="background:var(--amber)">–</span>
-      </button>
-      <button class="nav-item" onclick="nav('pmhist',this)">
-        <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h16" stroke-width="1.8" stroke-linecap="round"/></svg>
-        PM History
-      </button>
       <button class="nav-item" onclick="nav('pmcoverage',this)">
         <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke-width="1.8"/><path d="M3 9h18M9 9v12" stroke-width="1.8" stroke-linecap="round"/><path d="M6 13h2M6 17h2M12 13h6M12 17h4" stroke-width="1.5" stroke-linecap="round"/></svg>
         PM Coverage
         <span class="nav-badge" id="nb-coverage" style="background:var(--teal)">📊</span>
       </button>
-      <button class="nav-item" onclick="nav('pmcom',this)">
-        <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" stroke-width="1.8"/><path d="M8 21h8M12 17v4" stroke-width="1.8" stroke-linecap="round"/></svg>
-        PM Computer
-      </button>
     </div>
+    <div class="s-div"></div>
     <div class="s-footer">
       <div class="user-row">
         <div class="avatar" id="s-av">AD</div>
@@ -606,9 +587,7 @@ td{padding:10px 14px;color:var(--text);max-width:220px;overflow:hidden;text-over
         <button onclick="openImport()" id="topbar-import-btn" title="นำเข้า Excel" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);font-family:inherit;transition:all .15s">
           📂 <span id="topbar-import-lbl">นำเข้า Excel</span>
         </button>
-        <button onclick="showAlerts()" id="topbar-alert-btn" title="PM Alerts" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r-sm);border:1px solid var(--amber);background:var(--amber-soft);cursor:pointer;font-size:12px;font-weight:500;color:var(--amber);font-family:inherit">
-          🔔 <span id="topbar-alert-lbl">PM</span>
-        </button>
+
         <button onclick="openSettings()" id="gear-btn" class="icon-btn" title="ตั้งค่า Data Source">
           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-width="1.8"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke-width="1.8" stroke-linecap="round"/></svg>
         </button>
@@ -656,15 +635,15 @@ td{padding:10px 14px;color:var(--text);max-width:220px;overflow:hidden;text-over
       <div id="pg-tickets" style="display:none"></div>
       <!-- ITJobs page -->
       <div id="pg-itjobs" style="display:none"></div>
+      <!-- PM Coverage page -->
+      <div id="pg-pmcoverage" style="display:none"></div>
       <!-- Analytics page -->
       <div id="pg-analytics" style="display:none"></div>
       <!-- PM page -->
-      <div id="pg-pm" style="display:none"></div>
-      <!-- PM History page -->
-      <div id="pg-pmhist" style="display:none"></div>
+      
+      
       <div id="pg-pmcoverage" style="display:none"></div>
-      <!-- PM COM (merged into PM History) -->
-      <div id="pg-pmcom" style="display:none"></div>
+      
     </main>
   </div>
 </div>
@@ -752,9 +731,9 @@ function closeSB(){const _sb=document.getElementById('sidebar');const _ov=docume
 // ════════════════════════════════════════
 //  NAVIGATION
 // ════════════════════════════════════════
-const PG_TITLES={dashboard:'Dashboard',tickets:'Cases & Tickets',itjobs:'IT Jobs',analytics:'Analytics',pmcoverage:'PM Overview',pm:'PM Equipment Calendar',pmhist:'PM History',pmcom:'PM History'};
+const PG_TITLES={dashboard:'Dashboard',tickets:'Cases & Tickets',itjobs:'IT Jobs',analytics:'Analytics',pmcoverage:'PM Overview'};
 function nav(name,el){
-  ['dashboard','tickets','itjobs','analytics','pmcoverage','pm','pmhist','pmcom'].forEach(p=>{
+  ['dashboard','tickets','itjobs','analytics','pmcoverage'].forEach(p=>{
     const d=document.getElementById('pg-'+p);if(d)d.style.display='none';
   });
   const _pgEl=document.getElementById('pg-'+name);if(_pgEl)_pgEl.style.display='block';
@@ -846,7 +825,7 @@ function renderDashboard(){
   // Update nav badges
   document.getElementById('nb-open').textContent=hasData()?(open||total):'';
   document.getElementById('nb-jobs').textContent=jobTotal;
-  document.getElementById('nb-pm').textContent=pmDue;
+  const _nbPm=document.getElementById('nb-pm');if(_nbPm)_nbPm.textContent=pmDue;
 
   const html=`<div class="anim">
     <div class="kpi-grid">
@@ -878,24 +857,8 @@ function renderDashboard(){
     </div>
     <div id="recent-wrap"></div>
 
-    <!-- PM Alert Shortcut Card -->
-    ${(()=>{
-      const overdue = pm.filter(r=>parseFloat(r.DaysToPM||'99')<0);
-      const due7    = pm.filter(r=>{const d=parseFloat(r.DaysToPM||'99');return d>=0&&d<=7;});
-      if(!overdue.length && !due7.length) return '';
-      return `<div style="margin-top:14px;background:linear-gradient(135deg,rgba(239,68,68,.08),rgba(245,158,11,.06));border:1px solid rgba(239,68,68,.25);border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:14px;cursor:pointer" onclick="nav('pmcoverage',document.querySelector('.nav-item[onclick*=pmcoverage]'))">
-        <div style="font-size:28px">🚨</div>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:700;color:#ef4444;margin-bottom:4px">แจ้งเตือน PM Equipment</div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px">
-            ${overdue.length?`<span style="font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(239,68,68,.12);color:#ef4444;font-weight:600">🔴 เกินกำหนด ${overdue.length} เครื่อง</span>`:''}
-            ${due7.length?`<span style="font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(245,158,11,.12);color:#f59e0b;font-weight:600">⚠️ ใกล้ถึงรอบ (≤7 วัน) ${due7.length} เครื่อง</span>`:''}
-          </div>
-          <div style="font-size:10px;color:var(--text3);margin-top:5px">คลิกเพื่อดูรายละเอียดใน PM Overview →</div>
-        </div>
-        <div style="color:var(--text3);font-size:18px">›</div>
-      </div>`;
-    })()}
+    
+    
   </div>`;
 
   document.getElementById('pg-dashboard').innerHTML=html;
@@ -3385,7 +3348,7 @@ function renderPMCoverage() {
     <div class="page-header" style="margin-bottom:14px">
       <div style="flex:1">
         <div class="page-title">📊 PM Coverage — ความครบถ้วนการบำรุงรักษา</div>
-        <div class="page-sub">Coverage · อุปกรณ์ · ประวัติ PM · ปฏิทิน — ครบในที่เดียว</div>
+        <div class="page-sub">Coverage · อุปกรณ์ · ประวัติ PM — ครบในที่เดียว</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;margin-left:12px">
         <button class="btn-sm" onclick="exportCovCSV()" title="Export CSV">
@@ -3400,7 +3363,7 @@ function renderPMCoverage() {
     </div>
 
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px">
-      <div style="display:flex;gap:2px;padding:4px;background:var(--surface2);border-radius:10px;margin-right:6px"><button id="pmov-tab-cov" onclick="window._switchPMOvTab('cov')" style="padding:6px 16px;border-radius:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:var(--blue);color:#fff;font-family:inherit;transition:all .2s">📊 Coverage</button><button id="pmov-tab-equip" onclick="window._switchPMOvTab('equip')" style="padding:6px 16px;border-radius:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--text3);font-family:inherit;transition:all .2s">🖥 อุปกรณ์</button><button id="pmov-tab-hist" onclick="window._switchPMOvTab('hist')" style="padding:6px 16px;border-radius:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--text3);font-family:inherit;transition:all .2s">📋 ประวัติ PM</button><button id="pmov-tab-cal" onclick="window._switchPMOvTab('cal')" style="padding:6px 16px;border-radius:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--text3);font-family:inherit;transition:all .2s">📅 ปฏิทิน PM</button></div>
+      <div style="display:flex;gap:2px;padding:4px;background:var(--surface2);border-radius:10px;margin-right:6px"><button id="pmov-tab-cov" onclick="window._switchPMOvTab('cov')" style="padding:6px 16px;border-radius:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:var(--blue);color:#fff;font-family:inherit;transition:all .2s">📊 Coverage</button><button id="pmov-tab-equip" onclick="window._switchPMOvTab('equip')" style="padding:6px 16px;border-radius:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--text3);font-family:inherit;transition:all .2s">🖥 อุปกรณ์</button><button id="pmov-tab-hist" onclick="window._switchPMOvTab('hist')" style="padding:6px 16px;border-radius:7px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--text3);font-family:inherit;transition:all .2s">📋 ประวัติ PM</button></div>
       <label style="font-size:11px;color:var(--text3);font-weight:600">ประเภท:</label>
       <select class="f-select" id="cov-type-sel"
         onchange="window._covFT=this.value;document.getElementById('cov-body').innerHTML=window._covR()">
@@ -3436,8 +3399,8 @@ function renderPMCoverage() {
 
   // Tab switcher
   window._switchPMOvTab=function(tab){
-    const PANES=['cov-body','pmov-equip-pane','pmov-hist-pane','pmov-cal-pane'];
-    const BTNS =['pmov-tab-cov','pmov-tab-equip','pmov-tab-hist','pmov-tab-cal'];
+    const PANES=['cov-body','pmov-equip-pane','pmov-hist-pane'];
+    const BTNS =['pmov-tab-cov','pmov-tab-equip','pmov-tab-hist'];
     const ACT={background:'var(--blue)',color:'#fff'};
     const INA={background:'transparent',color:'var(--text3)'};
     PANES.forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
@@ -3453,16 +3416,14 @@ function renderPMCoverage() {
       show('pmov-hist-pane'); actBtn('pmov-tab-hist');
       renderPMHistPane('pmov-hist-pane');
     } else if(tab==='cal'){
-      const cp=show('pmov-cal-pane'); actBtn('pmov-tab-cal');
-      renderPMCalendar('pmov-cal-pane');
-    }
+     }
   };
 }
 
 
 function renderPMCom(){
   // PM Computer merged into PM_History_Archive — redirect to pmhist
-  nav('pmhist', document.querySelector('.nav-item[onclick*=pmhist]'));
+  nav('pmcoverage', document.querySelector('.nav-item[onclick*=pmhist]'));
 }
 
 function pcFilter(){
@@ -3530,10 +3491,7 @@ function renderPage(name){
   else if(name==='tickets')renderTickets();
   else if(name==='itjobs')renderITJobs();
   else if(name==='analytics')renderAnalytics();
-  else if(name==='pm')renderPMCalendar();
   else if(name==='pmcoverage')renderPMCoverage();
-  else if(name==='pmhist'){ if(typeof renderPMHist==='function')renderPMHist(); }
-  else if(name==='pmcom'){ if(typeof renderPMHist==='function')renderPMHist(); }
 
 }
 
@@ -3653,33 +3611,7 @@ function clearGlobalFilter() {
 // ════════════════════════════════════════
 //  🔔 SMART ALERTS
 // ════════════════════════════════════════
-function showAlerts(){
-  const pm=SHEETS.PM_MAIN_History||[];
-  const urgent=pm.filter(r=>parseFloat(r.DaysToPM||'99')<=3);
-  const warning=pm.filter(r=>{const d=parseFloat(r.DaysToPM||'99');return d>3&&d<=7;});
-  const info=pm.filter(r=>{const d=parseFloat(r.DaysToPM||'99');return d>7&&d<=14;});
-  const all=[...urgent,...warning,...info];
-  if(!all.length)return;
-
-  const total7=urgent.length+warning.length;
-  document.getElementById('alert-title').textContent=
-    `🔔 PM แจ้งเตือน — ${urgent.length} เครื่องเร่งด่วน, ${warning.length} เครื่องใกล้ครบรอบ`;
-
-  document.getElementById('alert-grid').innerHTML=all.map(r=>{
-    const d=parseFloat(r.DaysToPM||'99');
-    const cls=d<=3?'urgent':d<=7?'warning':'info';
-    const dayTxt=d<=0?'เกินกำหนด!':d===1?'พรุ่งนี้':d+' วัน';
-    return`<div class="alert-item ${cls}" onclick="nav('pm',null)">
-      <div class="alert-days ${cls}">${d<=0?'❗':d<=3?'🔴':d<=7?'🟡':'🔵'}</div>
-      <div>
-        <div class="alert-hw">${r.FTNameHWM||'–'} <span style="font-size:10px;color:var(--text3)">(${r.FTIdHWM||''})</span></div>
-        <div class="alert-detail">${r.FTLocationM||'–'} · ${r.FTMAssingnee||'–'} · PM: ${r.FDNextPMDateM||'–'} <strong>(${dayTxt})</strong></div>
-      </div>
-    </div>`;
-  }).join('');
-
-  document.getElementById('alert-popup').style.display='block';
-}
+function showAlerts(){ /* removed */ }
 function closeAlert(){document.getElementById('alert-popup').style.display='none';}
 
 // ════════════════════════════════════════
@@ -4404,7 +4336,7 @@ function confirmImport(){
     _pendingWb=null; _pendingSheetMap=null;
     // Update data source indicator
     onDataLoaded('imported', _pendingFilename || 'ไฟล์ Excel');
-    setTimeout(()=>{closeImport();if(DATA_SOURCE!=='live')showAlerts();}, 1200);
+    setTimeout(()=>{closeImport();}, 1200);
   }, 100);
 }
 
@@ -4663,6 +4595,17 @@ function openSettings() {
     scs.style.color=isConn?'var(--green)':'var(--text2)';
   }
 }
+
+function saveGASSettings(){
+  const u=document.getElementById('gas-url-input');
+  const s=document.getElementById('refresh-interval-sel');
+  if(u) GAS.url=u.value.trim();
+  if(s) GAS.interval=parseInt(s.value)||5000;
+  try{ localStorage.setItem('itdash_gas_settings',JSON.stringify({url:GAS.url,interval:GAS.interval,saved:Date.now()})); }catch(e){}
+  const scs=document.getElementById('settings-conn-status');
+  if(scs){ scs.textContent=GAS.url?'💾 บันทึกแล้ว':'⚪ ยังไม่ได้ตั้งค่า URL'; scs.style.color=GAS.url?'var(--green)':'var(--text2)'; }
+  closeSettings();
+}
 function closeSettings() {
   const _sm=document.getElementById('settings-modal');if(_sm)_sm.classList.remove('show');
 }
@@ -4817,7 +4760,7 @@ async function fetchFromGAS(silent) {
     rebuildCharts();
     if(GAS.lastSync && Object.values(SHEETS).every((a,_,arr) => a === arr[0] || true)){
       // Show PM alerts after first successful sync
-      if(!GAS._alertShown){ GAS._alertShown=true; setTimeout(showAlerts, 500); }
+      if(!GAS._alertShown){ GAS._alertShown=true; }
     }
 
     return true;
@@ -4921,15 +4864,7 @@ function onDataLoaded(source, label){
   initGlobalFilterOptions();
   const lbl=document.getElementById('topbar-import-lbl');
   if(lbl&&source!=='none') lbl.textContent=source==='live'?'🟢 Live':'✅ โหลดแล้ว';
-  // update alert badge
-  const pm=SHEETS.PM_MAIN_History||[];
-  const over=pm.filter(r=>r.FTStatusM==='เกินกำหนด').length;
-  const due2=pm.filter(r=>r.FTStatusM==='ต้องทำการ PM').length;
-  const tot=over+due2;
-  const albl=document.getElementById('topbar-alert-lbl');
-  const abtn=document.getElementById('topbar-alert-btn');
-  if(albl) albl.textContent=tot>0?`🔔 ${tot} รายการ`:'PM ✅';
-  if(abtn){abtn.style.borderColor=tot>0?'var(--red)':'var(--green)';abtn.style.background=tot>0?'var(--red-soft)':'var(--green-soft)';abtn.style.color=tot>0?'var(--red)':'var(--green)';}
+
 }
 
 // Dynamically populate year options from actual data
@@ -5027,7 +4962,7 @@ function openQR(hwId){
   const pmh=SHEETS.PM_History_Archive||[];
   const eq=pm.find(r=>r.FTIdHWM===hwId);
   if(!eq){alert('ไม่พบข้อมูล: '+hwId);return;}
-  document.getElementById('qr-modal').classList.add('show');
+  const _qrM=document.getElementById('qr-modal');if(!_qrM)return;_qrM.classList.add('show');
   function render(){
     const hist=pmh.filter(r=>r.FTIdHWpm===hwId||r.FTIdHWpm===eq.FTIdHWM)
       .sort((a,b)=>(b.FDOpenDate||'').localeCompare(a.FDOpenDate||'')).slice(0,5);
@@ -5035,7 +4970,7 @@ function openQR(hwId){
     const dc=days<=3?'var(--red)':days<=7?'var(--amber)':'var(--green)';
     const qrText=window.location.href.split('?')[0]+'?pm='+encodeURIComponent(hwId);
     const histHtml=hist.length?hist.map(h=>'<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid var(--border);color:var(--text2)"><span>'+h.FTJobNo+'</span><span>'+h.FDOpenDate+'</span><span style="color:'+(h.FTStatus==='Complete'?'var(--green)':'var(--amber)')+'">'+h.FTStatus+'</span></div>').join(''):'<div style="font-size:11px;color:var(--text3);padding:8px 0;text-align:center">ยังไม่มีประวัติ PM</div>';
-    document.getElementById('qr-body').innerHTML=
+    const _qrB=document.getElementById('qr-body');if(!_qrB)return;_qrB.innerHTML=
       '<div class="qr-hw-card">'+
         '<div style="font-size:14px;font-weight:600;color:var(--text)">'+(eq.FTNameHWM||'')+'</div>'+
         '<div style="font-family:monospace;font-size:11px;color:var(--accent)">'+eq.FTIdHWM+'</div>'+
@@ -5065,7 +5000,7 @@ function openQR(hwId){
     s.onload=render; document.head.appendChild(s);
   } else render();
 }
-function closeQR(){document.getElementById('qr-modal').classList.remove('show');}
+function closeQR(){const _qrM2=document.getElementById('qr-modal');if(_qrM2)_qrM2.classList.remove('show');}
 function printQR(id,name){
   const canvas=document.querySelector('#qr-canvas canvas')||document.querySelector('#qr-canvas img');
   if(!canvas){alert('กรุณารอ QR โหลดก่อน');return;}
@@ -5235,7 +5170,7 @@ function openMonthlyReport(){
         <button onclick="testAndConnect()" class="login-btn" style="flex:1;padding:10px;font-size:13px">
           🔗 ทดสอบ &amp; เชื่อมต่อ
         </button>
-        <button onclick="(function(){const u=document.getElementById('gas-url-input');const s=document.getElementById('refresh-interval-sel');if(u)GAS.url=u.value.trim();if(s)GAS.interval=parseInt(s.value)||5000;try{localStorage.setItem('itdash_gas_settings',JSON.stringify({url:GAS.url,interval:GAS.interval,saved:Date.now()}));}catch(e){}const scs4=document.getElementById('settings-conn-status');if(scs4){scs4.textContent=GAS.url?'💾 บันทึกแล้ว':'⚪ ยังไม่ได้ตั้งค่า URL';scs4.style.color=GAS.url?'var(--green)':'var(--text2)';}closeSettings();})()" class="login-btn" style="flex:1;padding:10px;font-size:13px;background:var(--green);border-color:var(--green)">
+        <button onclick="saveGASSettings()" class="login-btn" style="flex:1;padding:10px;font-size:13px;background:var(--green);border-color:var(--green)">
           💾 บันทึก
         </button>
       </div>
