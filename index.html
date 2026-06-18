@@ -792,7 +792,7 @@ function badge(v){
   if(!v||v===''||v==='nan')return'<span style="color:var(--text3)">–</span>';
   const lv=v.toLowerCase();
   let cls='b-open';
-  if(lv.includes('clos')||lv==='closed')cls='b-closed';
+  if(lv.includes('complet')||lv==='complete')cls='b-complete';
   else if(lv.includes('cancel'))cls='b-cancel';
   else if(lv.includes('progress')||lv.includes('กำลัง'))cls='b-progress';
   else if(lv.includes('complet')||lv.includes('สมบูรณ์')||lv.includes('complete'))cls='b-complete';
@@ -814,54 +814,109 @@ function renderDashboard(){
   const jobs=getData('ITJob_History');
   const pm=SHEETS.PM_MAIN_History||[];
 
-  const total=cases.length;
-  const open=cases.filter(r=>r.FTStatus?.toLowerCase()==='open').length;
-  const closed=cases.filter(r=>r.FTStatus?.toLowerCase()==='closed').length;
-  const cancel=cases.filter(r=>r.FTStatus?.toLowerCase().includes('cancel')).length;
-  const jobTotal=jobs.length;
-  const pmPending=pm.filter(r=>r.FTStatusM==='รอดำเนินการ').length;
-  const pmDue=pm.filter(r=>parseFloat(r.DaysToPM||'99')<=7).length;
+  const total    = cases.length;
+  const completed= cases.filter(r=>r.FTStatus?.toLowerCase()==='complete').length;
+  const inprog   = cases.filter(r=>(r.FTStatus||'').toLowerCase().includes('progress')).length;
+  const open     = cases.filter(r=>r.FTStatus?.toLowerCase()==='open').length;
+  const cancel   = cases.filter(r=>r.FTStatus?.toLowerCase().includes('cancel')).length;
+  const pending  = total - completed - cancel;
+  const resRate  = total ? ((completed/total)*100).toFixed(1) : 0;
+
+  const jobTotal   = jobs.length;
+  const jobDone    = jobs.filter(r=>r.FTStatus==='Complete').length;
+  const jobOpen    = jobs.filter(r=>r.FTStatus==='Open'||r.FTStatus==='In Progress').length;
+  const pmPending  = pm.filter(r=>r.FTStatusM==='รอดำเนินการ').length;
+  const pmDue      = pm.filter(r=>parseFloat(r.DaysToPM||'99')<=7).length;
+  const pmOverdue  = pm.filter(r=>r.FTStatusM==='เกินกำหนด').length;
+
+  const sc=cases.map(r=>parseFloat(r.FNServiceScore||'')).filter(v=>!isNaN(v)&&v>0);
+  const avgScore=sc.length?(sc.reduce((a,b)=>a+b,0)/sc.length).toFixed(2):'–';
 
   // Update nav badges
   document.getElementById('nb-open').textContent=hasData()?(open||total):'';
   document.getElementById('nb-jobs').textContent=jobTotal;
   const _nbPm=document.getElementById('nb-pm');if(_nbPm)_nbPm.textContent=pmDue;
 
-  const html=`<div class="anim">
-    <div class="kpi-grid">
-      ${kpiCard('Tickets ทั้งหมด',total.toLocaleString(),'🎫','var(--blue-soft)','var(--blue)','var(--blue)','รวมทุกสถานะ')}
-      ${kpiCard('ปิดแล้ว (Closed)',closed.toLocaleString(),'✅','var(--green-soft)','var(--green)','var(--green)',`${total?((closed/total)*100).toFixed(1):0}% resolution rate`)}
-      ${kpiCard('ยกเลิก (Cancel)',cancel.toLocaleString(),'🚫','var(--red-soft)','var(--red)','var(--red)','ถูกยกเลิก')}
-      ${kpiCard('IT Jobs',jobTotal.toLocaleString(),'🔧','var(--teal-soft)','var(--teal)','var(--teal)',`${jobs.filter(r=>r.FTStatus==='Closed').length.toLocaleString()} Closed`)}
-      ${kpiCard('PM รอดำเนินการ',pmPending.toLocaleString(),'⏳','var(--amber-soft)','var(--amber)','var(--amber)',`${pmDue} เครื่องใกล้ถึงรอบ PM`)}
-      ${(()=>{const sc=cases.map(r=>parseFloat(r.FNServiceScore||'')).filter(v=>!isNaN(v)&&v>0);const avg=sc.length?(sc.reduce((a,b)=>a+b,0)/sc.length).toFixed(2):'–';return kpiCard('คะแนนบริการเฉลี่ย',sc.length?avg:'–','⭐','var(--purple-soft)','var(--purple)','var(--purple)',sc.length?`จาก ${sc.length} การประเมิน`:'ยังไม่มีข้อมูล');})()}
+  const resBar=total?Math.round((completed/total)*100):0;
+  const jobBar=jobTotal?Math.round((jobDone/jobTotal)*100):0;
+
+  const pg=`<div class="anim">
+
+    <!-- ── KPI Row 1: Cases ── -->
+    <div class="sec-hd" style="margin-bottom:8px">
+      <div><div class="sec-title">📋 Cases & Tickets</div><div class="sec-sub">ภาพรวม Helpdesk — Cases_History</div></div>
+    </div>
+    <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:16px">
+      ${kpiCard('ทั้งหมด',total.toLocaleString(),'🎫','var(--blue-soft)','var(--blue)','var(--blue)','รวมทุกสถานะ')}
+      ${kpiCard('Complete',completed.toLocaleString(),'✅','var(--green-soft)','var(--green)','var(--green)',resRate+'% resolution rate')}
+      ${kpiCard('In Progress / Open',pending.toLocaleString(),'🔄','var(--amber-soft)','var(--amber)','var(--amber)',open+' Open · '+inprog+' In Progress')}
+      ${kpiCard('ยกเลิก',cancel.toLocaleString(),'🚫','var(--red-soft)','var(--red)','var(--red)','ถูกยกเลิก')}
+      ${kpiCard('คะแนนบริการ',sc.length?avgScore:'–','⭐','var(--purple-soft)','var(--purple)','var(--purple)',sc.length?'จาก '+sc.length+' การประเมิน':'ยังไม่มีข้อมูล')}
     </div>
 
-    <div class="sec-hd"><div><div class="sec-title">Charts & Analytics</div><div class="sec-sub">Cases History — ${total} tickets</div></div></div>
+    <!-- ── Resolution Rate Bar ── -->
+    <div class="chart-card" style="margin-bottom:14px;padding:16px 20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div>
+          <div class="chart-title">Resolution Rate</div>
+          <div class="chart-sub">สัดส่วน Complete vs Pending vs Cancel</div>
+        </div>
+        <div style="font-size:22px;font-weight:700;color:var(--green)">${resRate}%</div>
+      </div>
+      <div style="display:flex;height:10px;border-radius:8px;overflow:hidden;gap:2px">
+        <div style="width:${resBar}%;background:var(--green);border-radius:8px 0 0 8px;transition:width .6s"></div>
+        <div style="width:${total?Math.round((pending/total)*100):0}%;background:var(--amber)"></div>
+        <div style="width:${total?Math.round((cancel/total)*100):0}%;background:var(--red);border-radius:0 8px 8px 0"></div>
+      </div>
+      <div style="display:flex;gap:20px;margin-top:8px;font-size:11px;color:var(--text3)">
+        <span><span style="color:var(--green);font-weight:700">●</span> Complete ${completed}</span>
+        <span><span style="color:var(--amber);font-weight:700">●</span> Pending ${pending}</span>
+        <span><span style="color:var(--red);font-weight:700">●</span> Cancel ${cancel}</span>
+      </div>
+    </div>
+
+    <!-- ── KPI Row 2: IT Jobs + PM ── -->
+    <div class="sec-hd" style="margin-bottom:8px">
+      <div><div class="sec-title">🔧 IT Jobs & PM</div><div class="sec-sub">ภาพรวม IT Jobs และ Preventive Maintenance</div></div>
+    </div>
+    <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:16px">
+      ${kpiCard('IT Jobs ทั้งหมด',jobTotal.toLocaleString(),'🔧','var(--teal-soft)','var(--teal)','var(--teal)',jobDone+' Complete · '+jobOpen+' กำลังดำเนิน')}
+      ${kpiCard('PM ทั้งหมด',pm.length.toLocaleString(),'⚙️','var(--blue-soft)','var(--blue)','var(--blue)',pm.filter(r=>r.FTStatusM==='Complete').length+' Complete')}
+      ${kpiCard('PM รอดำเนินการ',pmPending.toLocaleString(),'⏳','var(--amber-soft)','var(--amber)','var(--amber)',pmDue+' เครื่องใกล้ถึงรอบ (≤7 วัน)')}
+      ${kpiCard('PM เกินกำหนด',pmOverdue.toLocaleString(),'🚨','var(--red-soft)','var(--red)','var(--red)','ต้องดำเนินการด่วน')}
+    </div>
+
+    <!-- ── Charts Row 1 ── -->
     <div class="charts-2">
       <div class="chart-card"><div class="chart-title">สถานะ Ticket</div><div class="chart-sub">การกระจายตามสถานะ</div><div class="chart-wrap" style="height:210px"><canvas id="ch-status"></canvas></div></div>
-      <div class="chart-card"><div class="chart-title">Ticket ตามแผนก</div><div class="chart-sub">Top 8 แผนกที่แจ้งมากที่สุด</div><div class="chart-wrap" style="height:210px"><canvas id="ch-dept"></canvas></div></div>
-      <div class="chart-card"><div class="chart-title">ผู้รับผิดชอบ (Assignee)</div><div class="chart-sub">จำนวน Ticket ต่อคน</div><div class="chart-wrap" style="height:180px"><canvas id="ch-assign"></canvas></div></div>
-      <div class="chart-card"><div class="chart-title">ประเภทปัญหา</div><div class="chart-sub">Problem Type / SubType</div><div class="chart-wrap" style="height:210px"><canvas id="ch-prob"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">Ticket ตามแผนก (Top 8)</div><div class="chart-sub">แผนกที่แจ้งมากที่สุด</div><div class="chart-wrap" style="height:210px"><canvas id="ch-dept"></canvas></div></div>
     </div>
+
+    <!-- ── Trend Chart ── -->
     <div class="chart-card" style="margin-bottom:14px"><div class="chart-title">Ticket Trend รายเดือน</div><div class="chart-sub">จำนวน Cases ที่เปิดต่อเดือน</div><div class="chart-wrap" style="height:180px"><canvas id="ch-trend"></canvas></div></div>
 
+    <!-- ── Charts Row 2 ── -->
+    <div class="charts-2" style="margin-top:0">
+      <div class="chart-card"><div class="chart-title">ผู้รับผิดชอบ (Assignee)</div><div class="chart-sub">จำนวน Ticket ต่อคน</div><div class="chart-wrap" style="height:200px"><canvas id="ch-assign"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">ประเภทปัญหา</div><div class="chart-sub">Problem Type / SubType</div><div class="chart-wrap" style="height:200px"><canvas id="ch-prob"></canvas></div></div>
+    </div>
+
+    <!-- ── Charts Row 3 ── -->
     <div class="charts-2" style="margin-top:0">
       <div class="chart-card"><div class="chart-title">IT Jobs ตามประเภท</div><div class="chart-sub">FTTypeJob</div><div class="chart-wrap" style="height:200px"><canvas id="ch-jobt"></canvas></div></div>
       <div class="chart-card"><div class="chart-title">ช่องทางแจ้ง (Channel)</div><div class="chart-sub">วิธีที่ใช้แจ้งปัญหา</div><div class="chart-wrap" style="height:200px"><canvas id="ch-chan"></canvas></div></div>
     </div>
 
+    <!-- ── Recent Tickets ── -->
     <div class="sec-hd" style="margin-top:6px">
       <div><div class="sec-title">Tickets ล่าสุด (10 รายการ)</div><div class="sec-sub">Cases_History</div></div>
       <button class="view-all" onclick="nav('tickets',null)">ดูทั้งหมด →</button>
     </div>
     <div id="recent-wrap"></div>
 
-    
-    
   </div>`;
 
-  document.getElementById('pg-dashboard').innerHTML=html;
+  document.getElementById('pg-dashboard').innerHTML=pg;
   renderDashboardCharts(cases,jobs);
   renderRecentTable(cases.slice(-10).reverse());
 }
@@ -950,7 +1005,7 @@ function renderTickets(){
       </div>
       <select class="f-select" id="tk-status" onchange="tkFilter()">
         <option value="">ทุกสถานะ</option>
-        <option>Closed</option><option>Open</option><option>Cancel</option>
+        <option>Complete</option><option>Open</option><option>Cancel</option>
       </select>
       <select class="f-select" id="tk-dept" onchange="tkFilter()">
         <option value="">ทุกแผนก</option>
@@ -1103,7 +1158,7 @@ function renderITJobs(){
 
   // Pre-compute summary stats for KPI cards
   const total=rows.length;
-  const closed=rows.filter(r=>r.FTStatus==='Closed').length;
+  const closed=rows.filter(r=>r.FTStatus==='Complete').length;
   const inProg=rows.filter(r=>r.FTStatus==='In Progress').length;
   // FNTranHrs only applies to Training jobs
   const trainingRows=rows.filter(r=>r.FTTypeJob==='Training');
@@ -1115,7 +1170,7 @@ function renderITJobs(){
     <!-- KPI row -->
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px">
       ${kpiCard('Jobs ทั้งหมด',total.toLocaleString(),'🔧','var(--blue-soft)','var(--blue)','var(--blue)','ทุกประเภทงาน')}
-      ${kpiCard('Closed',closed.toLocaleString(),'✅','var(--green-soft)','var(--green)','var(--green)',`${total?((closed/total)*100).toFixed(1):0}%`)}
+      ${kpiCard('Complete',closed.toLocaleString(),'✅','var(--green-soft)','var(--green)','var(--green)',`${total?((closed/total)*100).toFixed(1):0}%`)}
       ${kpiCard('In Progress',inProg.toLocaleString(),'⚙️','var(--amber-soft)','var(--amber)','var(--amber)','กำลังดำเนินการ')}
       ${kpiCard('Training Hours',totalHrs.toFixed(1)+' hrs','🎓','var(--purple-soft)','var(--purple)','var(--purple)',`${trainingCount} sessions`)}
       ${avgJobDuration?kpiCard('เวลาเฉลี่ย/งาน',avgJobDuration,'⏱️','var(--teal-soft)','var(--teal)','var(--teal)','ชม.'):''}
@@ -1547,7 +1602,7 @@ function anlTab(tab, btn){
   if(tab==='cases'){
     // KPI summary for cases
     const total=cases.length;
-    const closed=cases.filter(r=>r.FTStatus==='Closed').length;
+    const closed=cases.filter(r=>r.FTStatus==='Complete').length;
     const cancel=cases.filter(r=>(r.FTStatus||'').includes('Cancel')).length;
     const avgScore=cases.map(r=>parseFloat(r.FNServiceScore||'')).filter(v=>!isNaN(v));
     const scoreAvg=avgScore.length?(avgScore.reduce((a,b)=>a+b,0)/avgScore.length).toFixed(2):'-';
@@ -1563,7 +1618,7 @@ function anlTab(tab, btn){
       <!-- Cases KPI mini row -->
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:14px">
         ${kpiCard('Tickets ทั้งหมด',total,'🎫','var(--blue-soft)','var(--blue)','var(--blue)','')}
-        ${kpiCard('Closed',closed,'✅','var(--green-soft)','var(--green)','var(--green)',total?((closed/total)*100).toFixed(1)+'%':'')}
+        ${kpiCard('Complete',closed,'✅','var(--green-soft)','var(--green)','var(--green)',total?((closed/total)*100).toFixed(1)+'%':'')}
         ${kpiCard('Cancel',cancel,'🚫','var(--red-soft)','var(--red)','var(--red)','')}
         ${kpiCard('Avg Score',scoreAvg,'⭐','var(--amber-soft)','var(--amber)','var(--amber)','จาก 5')}
         ${kpiCard('Avg Resolution',avgResolution,'⏱️','var(--teal-soft)','var(--teal)','var(--teal)','วัน')}
@@ -1615,15 +1670,15 @@ function anlTab(tab, btn){
             <thead><tr>
               <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border)">แผนก</th>
               <th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border)">ทั้งหมด</th>
-              <th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border)">Closed</th>
-              <th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border)">% Closed</th>
+              <th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border)">Complete</th>
+              <th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border)">% Complete</th>
               <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border)">ปัญหาหลัก</th>
             </tr></thead>
             <tbody>
               ${[...new Set(cases.map(r=>r.FTDepartment).filter(Boolean))].sort()
                 .map(d=>{
                   const dc=cases.filter(r=>r.FTDepartment===d);
-                  const cl=dc.filter(r=>r.FTStatus==='Closed').length;
+                  const cl=dc.filter(r=>r.FTStatus==='Complete').length;
                   const top=countBy(dc,'FTProblemType',1)[0]?.name||'–';
                   return{d,t:dc.length,cl,top};
                 }).sort((a,b)=>b.t-a.t)
@@ -1679,7 +1734,7 @@ function anlTab(tab, btn){
   // ── TAB: IT Jobs ──────────────────────────────────────────
   } else if(tab==='itjobs'){
     const total=jobs.length;
-    const closed=jobs.filter(r=>r.FTStatus==='Closed').length;
+    const closed=jobs.filter(r=>r.FTStatus==='Complete').length;
     const trainingJobs=jobs.filter(r=>r.FTTypeJob==='Training');
     const hrs=trainingJobs.map(r=>parseFloat(r.FNTranHrs||'')).filter(v=>!isNaN(v));
     const totalHrs=hrs.reduce((a,b)=>a+b,0);
@@ -1701,7 +1756,7 @@ function anlTab(tab, btn){
       <!-- IT Jobs KPI mini row -->
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:14px">
         ${kpiCard('Jobs ทั้งหมด',total,'🔧','var(--blue-soft)','var(--blue)','var(--blue)','')}
-        ${kpiCard('Closed',closed,'✅','var(--green-soft)','var(--green)','var(--green)',total?((closed/total)*100).toFixed(1)+'%':'')}
+        ${kpiCard('Complete',closed,'✅','var(--green-soft)','var(--green)','var(--green)',total?((closed/total)*100).toFixed(1)+'%':'')}
         ${kpiCard('Training Hours',totalHrs.toFixed(1)+' hrs','🎓','var(--purple-soft)','var(--purple)','var(--purple)',trainingCount+' sessions')}
       </div>
 
@@ -5030,7 +5085,7 @@ function openMonthlyReport(){
   const jobs=(SHEETS.ITJob_History||[]).filter(r=>(r.FDOpenDate||'').startsWith(reportYM));
   const pmh=(SHEETS.PM_History_Archive||[]).filter(r=>(r.FDOpenDate||'').startsWith(reportYM));
   const pmcom=[];
-  const cTotal=cases.length, cClosed=cases.filter(r=>r.FTStatus==='Closed').length;
+  const cTotal=cases.length, cComplete=cases.filter(r=>r.FTStatus==='Complete').length;
   const jTotal=jobs.length;
   const jByType=ALL_JOB_TYPES.map(t=>({t,n:jobs.filter(r=>r.FTTypeJob===t).length})).filter(d=>d.n>0);
   const trainHrs=jobs.filter(r=>r.FTTypeJob==='Training').map(r=>parseFloat(r.FNTranHrs||'')).filter(v=>!isNaN(v)).reduce((a,b)=>a+b,0);
@@ -5043,7 +5098,7 @@ function openMonthlyReport(){
   const w=window.open('','_blank');
   const kpiHtml=
     '<div class="kpi"><div class="kpi-val">'+cTotal+'</div><div class="kpi-lbl">Cases ทั้งหมด</div></div>'+
-    '<div class="kpi"><div class="kpi-val" style="color:#22c55e">'+cClosed+'</div><div class="kpi-lbl">Closed ('+( cTotal?((cClosed/cTotal)*100).toFixed(0):0)+'%)</div></div>'+
+    '<div class="kpi"><div class="kpi-val" style="color:#22c55e">'+cComplete+'</div><div class="kpi-lbl">Complete ('+( cTotal?((cComplete/cTotal)*100).toFixed(0):0)+'%)</div></div>'+
     '<div class="kpi"><div class="kpi-val" style="color:#8b5cf6">'+jTotal+'</div><div class="kpi-lbl">IT Jobs</div></div>'+
     '<div class="kpi"><div class="kpi-val" style="color:#14b8a6">'+pmTotal+'</div><div class="kpi-lbl">PM History</div></div>'+
     (avgScore>0?'<div class="kpi"><div class="kpi-val" style="color:#f59e0b">'+avgScore.toFixed(2)+'</div><div class="kpi-lbl">Avg Score</div></div>':'')+
@@ -5074,8 +5129,8 @@ function openMonthlyReport(){
     '<td>'+(r.FDOpenDate||'')+'</td><td>'+((r.FTDepartment||'').slice(0,20))+'</td>'+
     '<td>'+((r.FTProblem||'').slice(0,35))+'</td><td>'+(r.FTAssingnee||'')+'</td>'+
     '<td><span style="display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;'+
-    'background:'+(r.FTStatus==='Closed'?'#dcfce7':r.FTStatus?.includes('Cancel')?'#fee2e2':'#fef3c7')+';'+
-    'color:'+(r.FTStatus==='Closed'?'#15803d':r.FTStatus?.includes('Cancel')?'#b91c1c':'#b45309')+'">'+(r.FTStatus||'')+'</span></td></tr>'
+    'background:'+(r.FTStatus==='Complete'?'#dcfce7':r.FTStatus?.includes('Cancel')?'#fee2e2':'#fef3c7')+';'+
+    'color:'+(r.FTStatus==='Complete'?'#15803d':r.FTStatus?.includes('Cancel')?'#b91c1c':'#b45309')+'">'+(r.FTStatus||'')+'</span></td></tr>'
   ).join('');
 
   w.document.write('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>IT Monthly Report '+reportYM+'</title>'+
