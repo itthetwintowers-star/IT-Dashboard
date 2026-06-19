@@ -1160,6 +1160,15 @@ function renderITJobs(){
   const total=rows.length;
   const closed=rows.filter(r=>r.FTStatus==='Complete').length;
   const inProg=rows.filter(r=>r.FTStatus==='In Progress').length;
+  // Avg job duration
+  const jobDurations=rows.map(r=>{
+    if(!r.FNStartTime||!r.FNClosedTime)return null;
+    return calcJobTime(r.FNStartTime,r.FNClosedTime);
+  }).filter(v=>v!==null&&v>0);
+  const avgJobDuration=jobDurations.length
+    ?(jobDurations.reduce((a,b)=>a+b,0)/jobDurations.length).toFixed(1)
+    :null;
+
   // FNTranHrs only applies to Training jobs
   const trainingRows=rows.filter(r=>r.FTTypeJob==='Training');
   const hrs=trainingRows.map(r=>parseFloat(r.FNTranHrs||'')).filter(v=>!isNaN(v));
@@ -1277,9 +1286,8 @@ function renderITJobs(){
     </div>
   </div>`;
 
-  // Build charts after DOM ready
-  setTimeout(()=>renderITJobCharts(rows), 40);
-  jbFilter();
+  // Build charts + table after DOM ready
+  setTimeout(()=>{ renderITJobCharts(rows); jbFilter(); }, 40);
 }
 
 
@@ -1694,27 +1702,7 @@ function anlTab(tab, btn){
         </div>
       </div>
 
-      <!-- YoY Job Type per Person comparison -->
-      <div class="chart-card" style="margin-bottom:14px">
-        <div class="chart-title">📅 ประเภทงานแต่ละคน เปรียบเทียบรายปี (YoY)</div>
-        <div class="chart-sub">จำนวนงานแต่ละประเภทของแต่ละคน เปรียบเทียบปีที่ผ่านมาและปีปัจจุบัน</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap" id="j-yoy-year-btns"></div>
-        <div class="chart-wrap" style="height:300px"><canvas id="anl-j-yoy-person"></canvas></div>
-      </div>
-
-      <!-- YoY Job Type distribution per year -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-        <div class="chart-card" style="margin:0">
-          <div class="chart-title">📊 ประเภทงาน — เปรียบเทียบปี</div>
-          <div class="chart-sub">สัดส่วน Job Type แต่ละปี</div>
-          <div class="chart-wrap" style="height:240px"><canvas id="anl-j-yoy-type"></canvas></div>
-        </div>
-        <div class="chart-card" style="margin:0">
-          <div class="chart-title">🏆 Top Assignee แต่ละปี</div>
-          <div class="chart-sub">คนที่รับงานมากที่สุด เปรียบเทียบปีต่อปี</div>
-          <div class="chart-wrap" style="height:240px"><canvas id="anl-j-yoy-assign"></canvas></div>
-        </div>
-      </div>`;
+`;
 
     setTimeout(()=>{
       const trend=trendBy(cases,'FDOpenDate',18);
@@ -1819,6 +1807,29 @@ function anlTab(tab, btn){
             </tbody>
           </table>
         </div>
+      </div>
+
+      <!-- YoY Comparison Charts -->
+      <div class="sec-hd" style="margin-top:14px"><div><div class="sec-title">📅 เปรียบเทียบรายปี (YoY)</div><div class="sec-sub">เลือกปีที่ต้องการเปรียบเทียบ</div></div></div>
+      <div class="chart-card" style="margin-bottom:14px">
+        <div class="chart-title">📅 ประเภทงานแต่ละคน เปรียบเทียบรายปี (YoY)</div>
+        <div class="chart-sub">จำนวนงานแต่ละประเภทของแต่ละคน เปรียบเทียบปีที่ผ่านมาและปีปัจจุบัน</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap" id="j-yoy-year-btns"></div>
+        <div class="chart-wrap" style="height:300px"><canvas id="anl-j-yoy-person"></canvas></div>
+      </div>
+
+      <!-- YoY Job Type distribution per year -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+        <div class="chart-card" style="margin:0">
+          <div class="chart-title">📊 ประเภทงาน — เปรียบเทียบปี</div>
+          <div class="chart-sub">สัดส่วน Job Type แต่ละปี</div>
+          <div class="chart-wrap" style="height:240px"><canvas id="anl-j-yoy-type"></canvas></div>
+        </div>
+        <div class="chart-card" style="margin:0">
+          <div class="chart-title">🏆 Top Assignee แต่ละปี</div>
+          <div class="chart-sub">คนที่รับงานมากที่สุด เปรียบเทียบปีต่อปี</div>
+          <div class="chart-wrap" style="height:240px"><canvas id="anl-j-yoy-assign"></canvas></div>
+        </div>
       </div>`;
 
     setTimeout(()=>{
@@ -1860,6 +1871,8 @@ function anlTab(tab, btn){
       window.updateJYoYCharts = function(){
         const checkedYrs = [...document.querySelectorAll('#j-yoy-year-btns input:checked')].map(e=>e.dataset.year);
         if(!checkedYrs.length) return;
+        // Guard: ensure canvas elements exist before charting
+        if(!document.getElementById('anl-j-yoy-person')) return;
 
         // Chart 1: Job Type per Person YoY (grouped bar)
         const jAllAssign = [...new Set(jobs.map(r=>r.FTAssingnee).filter(Boolean))].sort();
@@ -1922,8 +1935,8 @@ function anlTab(tab, btn){
         }});
       };
 
-      window.updateJYoYCharts();
-    }, 40);
+      setTimeout(window.updateJYoYCharts, 120);
+    }, 60);
 
   // ── TAB: Year-over-Year Comparison ──────────────────────────
   } else if(tab==='yoy'){
