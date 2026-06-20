@@ -4,7 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>IT Service Dashboard</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>window._chartJsLoaded=false;</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" onerror="console.warn('Chart.js CDN failed')"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root{
@@ -649,6 +650,7 @@ td{padding:10px 14px;color:var(--text);max-width:220px;overflow:hidden;text-over
 </div>
 
 <script>
+try {
 // ════════════════════════════════════════
 //  EMBEDDED DATA (from Excel)
 // ════════════════════════════════════════
@@ -1807,29 +1809,6 @@ function anlTab(tab, btn){
             </tbody>
           </table>
         </div>
-      </div>
-
-      <!-- YoY Comparison Charts -->
-      <div class="sec-hd" style="margin-top:14px"><div><div class="sec-title">📅 เปรียบเทียบรายปี (YoY)</div><div class="sec-sub">เลือกปีที่ต้องการเปรียบเทียบ</div></div></div>
-      <div class="chart-card" style="margin-bottom:14px">
-        <div class="chart-title">📅 ประเภทงานแต่ละคน เปรียบเทียบรายปี (YoY)</div>
-        <div class="chart-sub">จำนวนงานแต่ละประเภทของแต่ละคน เปรียบเทียบปีที่ผ่านมาและปีปัจจุบัน</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap" id="j-yoy-year-btns"></div>
-        <div class="chart-wrap" style="height:300px"><canvas id="anl-j-yoy-person"></canvas></div>
-      </div>
-
-      <!-- YoY Job Type distribution per year -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-        <div class="chart-card" style="margin:0">
-          <div class="chart-title">📊 ประเภทงาน — เปรียบเทียบปี</div>
-          <div class="chart-sub">สัดส่วน Job Type แต่ละปี</div>
-          <div class="chart-wrap" style="height:240px"><canvas id="anl-j-yoy-type"></canvas></div>
-        </div>
-        <div class="chart-card" style="margin:0">
-          <div class="chart-title">🏆 Top Assignee แต่ละปี</div>
-          <div class="chart-sub">คนที่รับงานมากที่สุด เปรียบเทียบปีต่อปี</div>
-          <div class="chart-wrap" style="height:240px"><canvas id="anl-j-yoy-assign"></canvas></div>
-        </div>
       </div>`;
 
     setTimeout(()=>{
@@ -1852,7 +1831,7 @@ function anlTab(tab, btn){
       mkChart('anl-j-monthly',{type:'bar',data:{labels:months,datasets:monthDs},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:C.text,font:{size:10},boxWidth:9,padding:5}}},scales:{x:{stacked:true,grid:{color:C.grid},ticks:{color:C.text,font:{size:10},maxRotation:30}},y:{stacked:true,grid:{color:C.grid},ticks:{color:C.text,font:{size:10}},beginAtZero:true}}}});
 
       // ── YoY: Job Type per Person ──────────────────────────
-      const YR_COLORS = ['#4f6ef7','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
+      const YR_COLORS = ['#2563eb','#16a34a','#ea580c','#9333ea','#0891b2','#be185d'];
 
       // Get all years in job data
       const jobYears = [...new Set(jobs.map(r=>(r.FDOpenDate||'').slice(0,4)).filter(y=>y&&y.length===4))].sort().reverse();
@@ -1869,73 +1848,75 @@ function anlTab(tab, btn){
       }
 
       window.updateJYoYCharts = function(){
+        // Get data directly so this works from any tab
+        const jobs = getData('ITJob_History');
+        const C = ct(), YR_COLORS = ['#2563eb','#16a34a','#ea580c','#9333ea','#0891b2','#be185d','#d97706','#059669'];
+
         const checkedYrs = [...document.querySelectorAll('#j-yoy-year-btns input:checked')].map(e=>e.dataset.year);
         if(!checkedYrs.length) return;
-        // Guard: ensure canvas elements exist before charting
         if(!document.getElementById('anl-j-yoy-person')) return;
 
-        // Chart 1: Job Type per Person YoY (grouped bar)
         const jAllAssign = [...new Set(jobs.map(r=>r.FTAssingnee).filter(Boolean))].sort();
         const jAllTypes  = [...new Set(jobs.map(r=>r.FTTypeJob).filter(Boolean))].sort();
+        const jTopAssign = jAllAssign.slice(0, 10);
 
-        // One dataset per (year × type) combination
+        const gridOpts = {color:C.grid};
+        const tickOpts = {color:C.text, font:{size:10}};
+        const baseOpts = (title,stacked) => ({
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:true,position:'top',labels:{color:C.text,font:{size:10},boxWidth:12}},
+            tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}`}} },
+          scales:{
+            x:{stacked:stacked||false,grid:gridOpts,ticks:{...tickOpts,maxRotation:30}},
+            y:{stacked:stacked||false,grid:gridOpts,ticks:tickOpts,beginAtZero:true}
+          }
+        });
+
+        // Chart 1: Job Type per Person (stacked grouped by year)
+        const TYPE_PALETTE = ['#2563eb','#16a34a','#ea580c','#9333ea','#0891b2','#be185d','#d97706','#059669'];
         const personDatasets = [];
         checkedYrs.forEach((y,yi)=>{
+          const yearOpacity = yi===0 ? 'dd' : '77';
           jAllTypes.forEach((t,ti)=>{
-            const color = YR_COLORS[yi%YR_COLORS.length];
-            const alpha = 1 - (ti / (jAllTypes.length + 1)) * 0.5;
+            const col = TYPE_PALETTE[ti % TYPE_PALETTE.length];
             personDatasets.push({
               label: 'ปี '+(parseInt(y)+543)+' · '+t,
               data: jAllAssign.map(a=>jobs.filter(r=>r.FTAssingnee===a&&r.FTTypeJob===t&&(r.FDOpenDate||'').startsWith(y)).length),
-              backgroundColor: color+(Math.round(alpha*255).toString(16).padStart(2,'0')),
-              borderColor: color,
-              borderWidth: 1,
+              backgroundColor: col + yearOpacity,
+              borderColor: col,
+              borderWidth: yi===0 ? 2 : 1,
               borderRadius: 3,
               stack: y,
             });
           });
         });
-        mkChart('anl-j-yoy-person',{type:'bar',data:{labels:jAllAssign,datasets:personDatasets},options:{
-          responsive:true, maintainAspectRatio:false,
-          plugins:{legend:{position:'top',labels:{color:C.text,font:{size:9},boxWidth:8,padding:4}}},
-          scales:{
-            x:{grid:{color:C.grid},ticks:{color:C.text,font:{size:10}}},
-            y:{grid:{color:C.grid},ticks:{color:C.text,font:{size:10}},beginAtZero:true}
-          }
-        }});
+        mkChart('anl-j-yoy-person',{type:'bar',data:{labels:jAllAssign,datasets:personDatasets},
+          options:{...baseOpts('ประเภทงานแต่ละคน YoY',true),
+            plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}}}});
 
-        // Chart 2: Job Type distribution per year (grouped bar)
+        // Chart 2: Job Type per Year
         const jTypeDatasets = checkedYrs.map((y,i)=>({
           label: 'ปี '+(parseInt(y)+543),
           data: jAllTypes.map(t=>jobs.filter(r=>(r.FDOpenDate||'').startsWith(y)&&r.FTTypeJob===t).length),
-          backgroundColor: YR_COLORS[i%YR_COLORS.length]+'cc',
+          backgroundColor: YR_COLORS[i%YR_COLORS.length]+(i===0?'dd':'88'),
           borderColor: YR_COLORS[i%YR_COLORS.length],
-          borderWidth:1, borderRadius:4,
+          borderWidth: i===0?2:1, borderRadius:4,
         }));
-        mkChart('anl-j-yoy-type',{type:'bar',data:{labels:jAllTypes,datasets:jTypeDatasets},options:{
-          responsive:true, maintainAspectRatio:false,
-          plugins:{legend:{position:'top',labels:{color:C.text,font:{size:10},boxWidth:8,padding:5}}},
-          scales:{x:{grid:{color:C.grid},ticks:{color:C.text,font:{size:10},maxRotation:30}},y:{grid:{color:C.grid},ticks:{color:C.text,font:{size:10}},beginAtZero:true}}
-        }});
+        mkChart('anl-j-yoy-type',{type:'bar',data:{labels:jAllTypes,datasets:jTypeDatasets},
+          options:baseOpts('ประเภทงาน YoY')});
 
-        // Chart 3: Top Assignee per year (grouped bar)
-        const topN = 8;
-        const jTopAssign = [...new Set(jobs.map(r=>r.FTAssingnee).filter(Boolean))].sort((a,b)=>jobs.filter(r=>r.FTAssingnee===b).length-jobs.filter(r=>r.FTAssingnee===a).length).slice(0,topN);
+        // Chart 3: Top Assignee per Year
         const jAssignDs = checkedYrs.map((y,i)=>({
           label: 'ปี '+(parseInt(y)+543),
           data: jTopAssign.map(a=>jobs.filter(r=>r.FTAssingnee===a&&(r.FDOpenDate||'').startsWith(y)).length),
-          backgroundColor: YR_COLORS[i%YR_COLORS.length]+'cc',
+          backgroundColor: YR_COLORS[i%YR_COLORS.length]+(i===0?'dd':'88'),
           borderColor: YR_COLORS[i%YR_COLORS.length],
-          borderWidth:1, borderRadius:4,
+          borderWidth: i===0?2:1, borderRadius:4,
         }));
-        mkChart('anl-j-yoy-assign',{type:'bar',data:{labels:jTopAssign,datasets:jAssignDs},options:{
-          responsive:true, maintainAspectRatio:false,
-          plugins:{legend:{position:'top',labels:{color:C.text,font:{size:10},boxWidth:8,padding:5}}},
-          scales:{x:{grid:{color:C.grid},ticks:{color:C.text,font:{size:10}}},y:{grid:{color:C.grid},ticks:{color:C.text,font:{size:10}},beginAtZero:true}}
-        }});
+        mkChart('anl-j-yoy-assign',{type:'bar',data:{labels:jTopAssign,datasets:jAssignDs},
+          options:baseOpts('Top Assignee YoY')});
       };
 
-      setTimeout(window.updateJYoYCharts, 120);
     }, 60);
 
   // ── TAB: Year-over-Year Comparison ──────────────────────────
@@ -2110,8 +2091,8 @@ function renderYoYTab(el, cases, jobs){
   }
 
   // Colors per year (newest = accent, older = muted)
-  const yearColors = ['#4f6ef7','#22c55e','#f59e0b','#ef4444','#8b5cf6'];
-  const yearColorsDark = ['#6b8aff','#34d399','#fbbf24','#f87171','#a78bfa'];
+  const yearColors = ['#2563eb','#16a34a','#ea580c','#9333ea','#0891b2'];
+  const yearColorsDark = ['#60a5fa','#4ade80','#fb923c','#c084fc','#22d3ee'];
   function yColor(i){ return C.text==='#6b7280' ? yearColors[i%yearColors.length] : yearColorsDark[i%yearColorsDark.length]; }
 
   // YoY delta formatter
@@ -2236,6 +2217,32 @@ function renderYoYTab(el, cases, jobs){
         </select>
       </div>
       <div id="yoy-table-wrap" style="overflow-x:auto"></div>
+
+      <!-- IT Jobs YoY Charts -->
+      <div class="sec-hd" style="margin-top:20px">
+        <div>
+          <div class="sec-title">📊 IT Jobs — เปรียบเทียบรายปี</div>
+          <div class="sec-sub">จำนวนงานแต่ละประเภทของแต่ละคน เปรียบเทียบปีที่ผ่านมาและปีปัจจุบัน</div>
+        </div>
+      </div>
+      <div class="charts-2" style="margin-bottom:14px">
+        <div class="chart-card">
+          <div class="chart-title">ประเภทงาน — เปรียบเทียบปี</div>
+          <div class="chart-sub">สัดส่วน Job Type แต่ละปี</div>
+          <div class="chart-wrap" style="height:280px"><canvas id="anl-j-yoy-type"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Top Assignee แต่ละปี</div>
+          <div class="chart-sub">คนที่รับงานมากที่สุด เปรียบเทียบปีต่อปี</div>
+          <div class="chart-wrap" style="height:280px"><canvas id="anl-j-yoy-assign"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card" style="margin-bottom:14px">
+        <div class="chart-title">ประเภทงานแต่ละคน เปรียบเทียบรายปี (YoY)</div>
+        <div class="chart-sub">จำนวนงานแต่ละประเภทของแต่ละคน เปรียบเทียบปีที่ผ่านมาและปีปัจจุบัน</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap" id="j-yoy-year-btns"></div>
+        <div class="chart-wrap" style="height:420px"><canvas id="anl-j-yoy-person"></canvas></div>
+      </div>
     </div>`;
 
   // Store data for chart/table updates
@@ -2244,7 +2251,22 @@ function renderYoYTab(el, cases, jobs){
   setTimeout(()=>{
     updateYoYCharts();
     updateYoYTable();
-  }, 40);
+    // Build j-yoy-year-btns if not already built (user may not have visited IT Jobs tab)
+    const jYoyBtns = document.getElementById('j-yoy-year-btns');
+    if(jYoyBtns && !jYoyBtns.innerHTML.trim()){
+      const jobs = getData('ITJob_History');
+      const jobYears = [...new Set(jobs.map(r=>(r.FDOpenDate||'').slice(0,4)).filter(y=>y&&y.length===4))].sort().reverse();
+      const activeYrs = jobYears.slice(0,2);
+      const YR_COLORS = ['#2563eb','#16a34a','#ea580c','#9333ea','#0891b2','#be185d'];
+      jYoyBtns.innerHTML = jobYears.map((y,i)=>{
+        const col = YR_COLORS[i%YR_COLORS.length];
+        const checked = activeYrs.includes(y);
+        return `<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;background:${checked?col+'22':'var(--surface2)'};border:1.5px solid ${checked?col:'var(--border)'};color:${checked?col:'var(--text3)'}">
+          <input type="checkbox" ${checked?'checked':''} data-year="${y}" onchange="if(typeof window.updateJYoYCharts==='function')window.updateJYoYCharts()" style="accent-color:${col}">ปี ${parseInt(y)+543}</label>`;
+      }).join('');
+    }
+    if(typeof window.updateJYoYCharts==='function') window.updateJYoYCharts();
+  }, 80);
 }
 
 function getCheckedYears(){
@@ -5170,6 +5192,26 @@ function openMonthlyReport(){
     '<scr'+'ipt>window.onload=function(){window.print();}</'+'script></body></html>');
   w.document.close();
 }
+
+
+} catch(e) { console.error("Dashboard init error:", e); }
+
+// ── Explicit global exports (ensure onclick works) ──
+window.doLogin       = typeof doLogin       !== 'undefined' ? doLogin       : function(){};
+window.nav           = typeof nav           !== 'undefined' ? nav           : function(){};
+window.openImport    = typeof openImport    !== 'undefined' ? openImport    : function(){};
+window.closeImport   = typeof closeImport   !== 'undefined' ? closeImport   : function(){};
+window.openSettings  = typeof openSettings  !== 'undefined' ? openSettings  : function(){};
+window.closeSettings = typeof closeSettings !== 'undefined' ? closeSettings : function(){};
+window.openMonthlyReport = typeof openMonthlyReport !== 'undefined' ? openMonthlyReport : function(){};
+window.doRefresh     = typeof doRefresh     !== 'undefined' ? doRefresh     : function(){};
+window.toggleSB      = typeof toggleSB      !== 'undefined' ? toggleSB      : function(){};
+window.saveGASSettings = typeof saveGASSettings !== 'undefined' ? saveGASSettings : function(){};
+window.testAndConnect = typeof testAndConnect !== 'undefined' ? testAndConnect : function(){};
+window.handleFileSelect = typeof handleFileSelect !== 'undefined' ? handleFileSelect : function(){};
+window.dzDragOver    = typeof dzDragOver    !== 'undefined' ? dzDragOver    : function(){};
+window.dzDragLeave   = typeof dzDragLeave   !== 'undefined' ? dzDragLeave   : function(){};
+window.dzDrop        = typeof dzDrop        !== 'undefined' ? dzDrop        : function(){};
 
 </script>
 
