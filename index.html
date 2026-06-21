@@ -4791,31 +4791,46 @@ async function fetchFromGAS(silent) {
     const json = await res.json();
     if (json.error) throw new Error(json.error);
 
-    // json.data = { Cases_History: [...], ITJob_History: [...], ... }
-    const data = json.data || {};
+    // GAS returns: { cases:[...], jobs:[...], pm:[...], pmHistory:[...] }
+    // Map GAS keys → SHEETS keys
+    const GAS_KEY_MAP = {
+      cases:     'Cases_History',
+      jobs:      'ITJob_History',
+      pm:        'PM_MAIN_History',
+      pmHistory: 'PM_History_Archive',
+      // Also support direct sheet-name keys (fallback)
+      Cases_History:      'Cases_History',
+      ITJob_History:      'ITJob_History',
+      PM_MAIN_History:    'PM_MAIN_History',
+      PM_History_Archive: 'PM_History_Archive',
+    };
+
+    // Accept either json.data wrapper or flat response
+    const raw = (json.data && typeof json.data === 'object') ? json.data : json;
     let totalRows = 0;
 
-    Object.keys(data).forEach(sheet => {
-      if (data[sheet] && Array.isArray(data[sheet])) {
-        let sheetData = data[sheet];
-        // Recompute DaysToPM for PM_MAIN_History (in case GAS sends formula string)
-        if(sheet === 'PM_MAIN_History') {
-          const today = new Date(); today.setHours(0,0,0,0);
-          sheetData = sheetData.map(r => {
-            const d = parseFloat(r.DaysToPM);
-            if(isNaN(d) && r.FDNextPMDateM) {
-              const next = new Date(r.FDNextPMDateM);
-              if(!isNaN(next.getTime()))
-                r.DaysToPM = String(Math.round((next-today)/(1000*60*60*24)));
-            }
-            return r;
-          });
-        }
-        SHEETS[sheet] = sheetData;
-        totalRows += sheetData.length;
-        // Reset filtered caches
-        if (FILTERED[sheet] !== undefined) FILTERED[sheet] = null;
+    Object.keys(GAS_KEY_MAP).forEach(gasKey => {
+      if (!raw[gasKey] || !Array.isArray(raw[gasKey])) return;
+      const sheetKey = GAS_KEY_MAP[gasKey];
+      let sheetData = raw[gasKey];
+
+      // Recompute DaysToPM for PM_MAIN_History
+      if (sheetKey === 'PM_MAIN_History') {
+        const today = new Date(); today.setHours(0,0,0,0);
+        sheetData = sheetData.map(r => {
+          const d = parseFloat(r.DaysToPM);
+          if (isNaN(d) && r.FDNextPMDateM) {
+            const next = new Date(r.FDNextPMDateM);
+            if (!isNaN(next.getTime()))
+              r.DaysToPM = String(Math.round((next - today) / (1000*60*60*24)));
+          }
+          return r;
+        });
       }
+
+      SHEETS[sheetKey] = sheetData;
+      totalRows += sheetData.length;
+      if (FILTERED[sheetKey] !== undefined) FILTERED[sheetKey] = null;
     });
 
     // Reset all table caches
