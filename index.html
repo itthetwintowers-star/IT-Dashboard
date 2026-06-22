@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>IT Service Dashboard</title>
 <script>window._chartJsLoaded=false;</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" onerror="console.warn('Chart.js CDN failed')"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" onerror=""></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root{
@@ -473,6 +473,54 @@ td{padding:10px 14px;color:var(--text);max-width:220px;overflow:hidden;text-over
 .modal-x:hover{color:var(--text)}
 .modal-body{padding:18px 20px}
 
+
+/* ── Loading Skeleton ── */
+.skeleton{
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s infinite;
+  border-radius: var(--r-sm);
+}
+@keyframes skeleton-shimmer{
+  0%{background-position:200% 0}
+  100%{background-position:-200% 0}
+}
+.page-loading{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  height:300px; gap:16px; color:var(--text3); font-size:13px;
+}
+.page-loading .spin{
+  width:36px; height:36px;
+  border:3px solid var(--border);
+  border-top-color:var(--accent);
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{ to{transform:rotate(360deg)} }
+.sk-row{ height:14px; margin-bottom:8px; border-radius:4px; }
+.sk-table{ padding:12px; }
+.sk-table .sk-row:first-child{ width:60%; }
+.sk-table .sk-row:nth-child(2){ width:85%; }
+.sk-table .sk-row:nth-child(3){ width:75%; }
+.sk-table .sk-row:nth-child(4){ width:90%; }
+.sk-table .sk-row:nth-child(5){ width:70%; }
+
+
+/* ── Loading Skeleton ── */
+.skeleton-wrap { padding: 20px; }
+.skeleton-row  { display:flex; gap:12px; margin-bottom:14px; }
+.sk { background:linear-gradient(90deg,var(--border) 25%,var(--surface2) 50%,var(--border) 75%);
+      background-size:200% 100%; border-radius:6px; animation:sk-shimmer 1.4s infinite; }
+@keyframes sk-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.sk-title { height:18px; width:40%; }
+.sk-line  { height:12px; width:100%; }
+.sk-line.w70 { width:70%; }
+.sk-line.w50 { width:50%; }
+.sk-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:16px; }
+.sk-kpi { height:90px; border-radius:10px; }
+.sk-chart { height:220px; border-radius:10px; margin-bottom:14px; }
+.sk-table-row { height:38px; border-radius:6px; margin-bottom:6px; }
+
 /* Animate in */
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .anim{animation:fadeUp .25s ease}
@@ -585,6 +633,9 @@ td{padding:10px 14px;color:var(--text);max-width:220px;overflow:hidden;text-over
         <button class="icon-btn" onclick="doRefresh()" title="Refresh">
           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
+        <button onclick="exportPagePDF()" title="Export หน้านี้เป็น PDF" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);font-family:inherit;transition:all .15s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">
+          📄 Export PDF
+        </button>
         <button onclick="openImport()" id="topbar-import-btn" title="นำเข้า Excel" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);font-family:inherit;transition:all .15s">
           📂 <span id="topbar-import-lbl">นำเข้า Excel</span>
         </button>
@@ -622,6 +673,7 @@ td{padding:10px 14px;color:var(--text);max-width:220px;overflow:hidden;text-over
       <button class="df-clear" onclick="clearGlobalFilter()" id="gf-clear-btn" style="display:none">✕ ล้างตัวกรอง</button>
       <span class="df-count" id="gf-count">ทั้งหมด 388 รายการ</span>
       <button onclick="openMonthlyReport()" style="display:flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;border:1px solid var(--blue);background:var(--blue-soft);cursor:pointer;font-size:12px;font-weight:500;color:var(--blue);font-family:inherit">📄 รายงานเดือน</button>
+      <button onclick="exportPagePDF()" style="display:flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;border:1px solid var(--purple);background:var(--purple-soft);cursor:pointer;font-size:12px;font-weight:500;color:var(--purple);font-family:inherit">🖨️ Export PDF</button>
     </div>
 
     <main id="page">
@@ -739,6 +791,7 @@ function nav(name,el){
     const d=document.getElementById('pg-'+p);if(d)d.style.display='none';
   });
   const _pgEl=document.getElementById('pg-'+name);if(_pgEl)_pgEl.style.display='block';
+  if(hasData()) showPageLoading('pg-'+name);
   document.getElementById('pg-title').textContent=PG_TITLES[name]||name;
   ST.page=name;
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
@@ -778,6 +831,97 @@ function mkChart(id,cfg){
   const ctx=document.getElementById(id);if(!ctx)return;
   ST.charts[id]=new Chart(ctx,cfg);
 }
+
+// ── Page loading helpers ──
+function showPageLoading(pgId){
+  const el = document.getElementById(pgId);
+  if(!el) return;
+  el.innerHTML = `<div class="page-loading">
+    <div class="spin"></div>
+    <div>กำลังโหลดข้อมูล...</div>
+    <div class="sk-table" style="width:320px">
+      <div class="skeleton sk-row"></div>
+      <div class="skeleton sk-row"></div>
+      <div class="skeleton sk-row"></div>
+      <div class="skeleton sk-row" style="width:55%"></div>
+    </div>
+  </div>`;
+}
+
+function showTableLoading(tbodyId){
+  const el = document.getElementById(tbodyId);
+  if(!el) return;
+  el.innerHTML = Array(5).fill(0).map(()=>`
+    <tr>${Array(6).fill(0).map(()=>`<td><div class="skeleton sk-row" style="width:${60+Math.random()*35|0}%"></div></td>`).join('')}</tr>
+  `).join('');
+}
+
+// ── Skeleton helpers ──
+function showSkeleton(elId, type='table'){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  const kpiRow = `<div class="sk-kpi-row">${'<div class="sk sk-kpi"></div>'.repeat(4)}</div>`;
+  const chart  = `<div class="sk sk-chart"></div>`;
+  const rows   = `${'<div class="sk sk-table-row"></div>'.repeat(8)}`;
+  el.innerHTML = `<div class="skeleton-wrap">
+    <div class="sk-row"><div class="sk sk-title" style="margin-bottom:16px"></div></div>
+    ${type==='dashboard' ? kpiRow+chart+chart : type==='table' ? rows : chart}
+  </div>`;
+}
+function hideSkeleton(elId){ /* auto-cleared when innerHTML is replaced */ }
+
+
+// ── Export current page as PDF ──
+function exportPagePDF(){
+  const pageNames = {
+    dashboard:'Dashboard',tickets:'Cases & Tickets',
+    itjobs:'IT Jobs',analytics:'Analytics',pmcoverage:'PM Coverage'
+  };
+  const title = pageNames[ST.page] || 'IT Dashboard';
+  const pageEl = document.getElementById('pg-'+ST.page);
+  if(!pageEl){ alert('ไม่พบหน้าที่ต้องการ Export'); return; }
+
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>${title}</title>
+    <style>
+      @page { size:A4 landscape; margin:15mm; }
+      body { font-family:'Noto Sans Thai',sans-serif; font-size:11px; color:#111; background:#fff; }
+      .anim { animation:none !important; }
+      canvas { max-width:100% !important; }
+      .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:14px; }
+      .kpi-card { border:1px solid #e5e7eb; border-radius:8px; padding:12px; }
+      .kpi-val  { font-size:22px; font-weight:700; }
+      .kpi-lbl  { font-size:10px; color:#6b7280; margin-bottom:4px; }
+      .kpi-sub  { font-size:10px; color:#9ca3af; margin-top:2px; }
+      .chart-card { border:1px solid #e5e7eb; border-radius:8px; padding:12px; margin-bottom:12px; }
+      table { width:100%; border-collapse:collapse; font-size:10px; }
+      th { background:#f3f4f6; padding:5px 8px; text-align:left; border-bottom:1px solid #e5e7eb; }
+      td { padding:4px 8px; border-bottom:1px solid #f3f4f6; }
+      .sec-title { font-size:14px; font-weight:700; margin:14px 0 8px; }
+      .no-print  { display:none !important; }
+      button,select,input { display:none !important; }
+      .pagination { display:none !important; }
+      h1 { font-size:18px; font-weight:700; margin-bottom:4px; color:#1e40af; }
+      .export-meta { font-size:10px; color:#6b7280; margin-bottom:14px; }
+    </style>
+  </head><body>
+    <h1>📊 IT Command — ${title}</h1>
+    <div class="export-meta">วันที่ Export: ${new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+    ${pageEl.innerHTML}
+    <script>window.onload=function(){window.print();}</'+'script>
+  </body></html>`);
+  w.document.close();
+}
+
+// ── Debounced resize → rebuild charts ──
+let _resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => { if(hasData()) rebuildCharts(); }, 250);
+});
+
 function rebuildCharts(){
   if(!hasData()) return;
   const cases=getData('Cases_History');
@@ -812,6 +956,7 @@ function levelBadge(v){
 //  DASHBOARD PAGE
 // ════════════════════════════════════════
 function renderDashboard(){
+  showSkeleton('pg-dashboard','dashboard');
   const cases=getData('Cases_History');
   const jobs=getData('ITJob_History');
   const pm=SHEETS.PM_MAIN_History||[];
@@ -993,6 +1138,7 @@ function renderRecentTable(rows){
 //  TICKETS (Cases) TABLE
 // ════════════════════════════════════════
 function renderTickets(){
+  showSkeleton('pg-tickets','table');
   const el=document.getElementById('pg-tickets');
   const caseRows=SHEETS.Cases_History||[];
   el.innerHTML=`<div class="anim">
@@ -1089,6 +1235,7 @@ function tkSort(col){
 }
 function tkRender(){
   if(!tkFiltered.length)tkFiltered=[...getData('Cases_History')];
+  showTableLoading('tk-body');
   let rows=[...tkFiltered];
   if(ST.tableState.sort){
     const col=ST.tableState.sort,dir=ST.tableState.dir;
@@ -1155,6 +1302,7 @@ function fmtJobTime(startStr, closeStr) {
 }
 
 function renderITJobs(){
+  showSkeleton('pg-itjobs','table');
   const rows=getData('ITJob_History');
   const el=document.getElementById('pg-itjobs');
 
@@ -1543,6 +1691,7 @@ function jbSort(col){
 }
 function jbRender(p){
   if(!jbFiltered.length)jbFiltered=[...getData('ITJob_History')];
+  showTableLoading('jb-body');
   let rows=[...jbFiltered];
   if(jbSortCol){
     const col=jbSortCol,dir=jbSortDir;
@@ -4784,39 +4933,52 @@ async function fetchFromGAS(silent) {
   if (!silent) setConnStatus('testing', 'กำลังดึงข้อมูล...');
 
   try {
-    // Fetch all sheets in one request (no ?sheet param = all)
-    const url = GAS.url + (GAS.url.includes('?') ? '&' : '?') + 'v=' + Date.now();
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    if (json.error) throw new Error(json.error);
+    // Fetch 4 sheets in parallel — avoids GAS 30s timeout on large datasets
+    const GAS_SHEETS = [
+      { key: 'cases',     sheet: 'Cases_History'      },
+      { key: 'jobs',      sheet: 'ITJob_History'       },
+      { key: 'pm',        sheet: 'PM_MAIN_History'     },
+      { key: 'pmHistory', sheet: 'PM_History_Archive'  },
+    ];
+    const base = GAS.url + (GAS.url.includes('?') ? '&' : '?');
+    const ts   = Date.now();
 
-    // GAS returns: { cases:[...], jobs:[...], pm:[...], pmHistory:[...] }
-    // Map GAS keys → SHEETS keys
-    const GAS_KEY_MAP = {
-      cases:     'Cases_History',
-      jobs:      'ITJob_History',
-      pm:        'PM_MAIN_History',
-      pmHistory: 'PM_History_Archive',
-      // Also support direct sheet-name keys (fallback)
-      Cases_History:      'Cases_History',
-      ITJob_History:      'ITJob_History',
-      PM_MAIN_History:    'PM_MAIN_History',
-      PM_History_Archive: 'PM_History_Archive',
-    };
+    // Try combined first (?sheet=all), fallback to parallel per-sheet
+    if(!silent) setConnStatus('testing', 'กำลังดึงข้อมูล...');
 
-    // Accept either json.data wrapper or flat response
-    const raw = (json.data && typeof json.data === 'object') ? json.data : json;
+    let results;
+    try {
+      // Combined request — fastest if GAS handles it
+      const combRes = await fetch(base + 'sheet=all&v=' + ts, { cache:'no-store' });
+      if (!combRes.ok) throw new Error('HTTP ' + combRes.status);
+      const combJson = await combRes.json();
+      if (combJson.error) throw new Error(combJson.error);
+      // Map combined response to results array
+      const raw = (combJson.data && typeof combJson.data === 'object') ? combJson.data : combJson;
+      results = GAS_SHEETS.map(s => {
+        const data = raw[s.key] || raw[s.sheet] || [];
+        return { key: s.sheet, data: Array.isArray(data) ? data : [] };
+      });
+    } catch(_combinedErr) {
+      // Fallback: parallel per-sheet (avoids GAS 30s timeout on large data)
+      if(!silent) setConnStatus('testing', 'กำลังดึงข้อมูล (parallel)...');
+      results = await Promise.all(
+        GAS_SHEETS.map(s =>
+          fetch(base + 'sheet=' + s.key + '&v=' + ts, { cache: 'no-store' })
+            .then(r => { if(!r.ok) throw new Error('HTTP ' + r.status + ' (' + s.key + ')'); return r.json(); })
+            .then(json => ({ key: s.sheet, data: json.error ? [] : (Array.isArray(json) ? json : []) }))
+        )
+      );
+    }
+
     let totalRows = 0;
+    const today = new Date(); today.setHours(0,0,0,0);
 
-    Object.keys(GAS_KEY_MAP).forEach(gasKey => {
-      if (!raw[gasKey] || !Array.isArray(raw[gasKey])) return;
-      const sheetKey = GAS_KEY_MAP[gasKey];
-      let sheetData = raw[gasKey];
+    results.forEach(({ key, data }) => {
+      let sheetData = data;
 
       // Recompute DaysToPM for PM_MAIN_History
-      if (sheetKey === 'PM_MAIN_History') {
-        const today = new Date(); today.setHours(0,0,0,0);
+      if (key === 'PM_MAIN_History') {
         sheetData = sheetData.map(r => {
           const d = parseFloat(r.DaysToPM);
           if (isNaN(d) && r.FDNextPMDateM) {
@@ -4828,9 +4990,9 @@ async function fetchFromGAS(silent) {
         });
       }
 
-      SHEETS[sheetKey] = sheetData;
+      SHEETS[key] = sheetData;
       totalRows += sheetData.length;
-      if (FILTERED[sheetKey] !== undefined) FILTERED[sheetKey] = null;
+      if (FILTERED[key] !== undefined) FILTERED[key] = null;
     });
 
     // Reset all table caches
@@ -5208,8 +5370,25 @@ function openMonthlyReport(){
   w.document.close();
 }
 
+// ── Responsive charts on resize (debounced 250ms) ──
+(function(){
+  let _resizeTimer;
+  window.addEventListener('resize', function(){
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(function(){
+      if(!hasData()) return;
+      // Resize all active Chart.js instances
+      Object.values(ST.charts||{}).forEach(function(c){
+        try{ if(c && c.resize) c.resize(); } catch(e){}
+      });
+      // Re-render charts for current page
+      rebuildCharts();
+    }, 250);
+  });
+})();
 
-} catch(e) { console.error("Dashboard init error:", e); }
+
+} catch(e) { console.error('Dashboard init error:', e); }
 
 // ── Explicit global exports (ensure onclick works) ──
 window.doLogin       = typeof doLogin       !== 'undefined' ? doLogin       : function(){};
@@ -5221,6 +5400,7 @@ window.closeSettings = typeof closeSettings !== 'undefined' ? closeSettings : fu
 window.openMonthlyReport = typeof openMonthlyReport !== 'undefined' ? openMonthlyReport : function(){};
 window.doRefresh     = typeof doRefresh     !== 'undefined' ? doRefresh     : function(){};
 window.toggleSB      = typeof toggleSB      !== 'undefined' ? toggleSB      : function(){};
+window.exportPagePDF  = typeof exportPagePDF  !== 'undefined' ? exportPagePDF  : function(){};
 window.saveGASSettings = typeof saveGASSettings !== 'undefined' ? saveGASSettings : function(){};
 window.testAndConnect = typeof testAndConnect !== 'undefined' ? testAndConnect : function(){};
 window.handleFileSelect = typeof handleFileSelect !== 'undefined' ? handleFileSelect : function(){};
