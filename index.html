@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#1e40af"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="IT Dashboard"/>
 <title>IT Service Dashboard</title>
 <script>window._chartJsLoaded=false;</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" onerror=""></script>
@@ -3777,6 +3781,40 @@ let FILTERED = {
 };
 
 // Return active filtered data for a sheet (or all rows if no filter)
+// ── Memo cache for derived computations ──
+const _memo = {};
+let   _memoKey = 0; // incremented on data change to bust cache
+
+function _mk(fn, ...args) {
+  const key = fn + '|' + _memoKey + '|' + args.join('|');
+  if (_memo[key] !== undefined) return _memo[key];
+  return (_memo[key] = fn === 'countBy'   ? _countBy(...args)
+                      : fn === 'trendBy'   ? _trendBy(...args)
+                      : fn === 'topN'      ? _topN(...args)
+                      : null);
+}
+
+function _countBy(rows, field, limit) {
+  const m = {};
+  rows.forEach(r => { const v = r[field] || '(ไม่ระบุ)'; m[v] = (m[v] || 0) + 1; });
+  const arr = Object.entries(m).map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+  return limit ? arr.slice(0, limit) : arr;
+}
+function _trendBy(rows, dateField) {
+  const m = {};
+  rows.forEach(r => {
+    const d = (r[dateField] || '').slice(0, 7); // YYYY-MM
+    if (d.length === 7) m[d] = (m[d] || 0) + 1;
+  });
+  return Object.entries(m).sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, count]) => ({ month, count }));
+}
+function _topN(arr, n) { return arr.slice(0, n); }
+
+// Bust memo when data changes
+function _bustMemo() { _memoKey++; Object.keys(_memo).forEach(k => delete _memo[k]); }
+
 function getData(sheet) {
   return FILTERED[sheet] !== null ? FILTERED[sheet] : (SHEETS[sheet] || []);
 }
@@ -3827,6 +3865,7 @@ function applyGlobalFilter() {
     : `ทั้งหมด ${(SHEETS.Cases_History||[]).length.toLocaleString()} รายการ`;
   document.getElementById('gf-count').textContent = label;
 
+  _bustMemo();
   // Re-render current page
   renderPage(ST.page);
   // If analytics overview is showing, refresh maintenance charts too
@@ -4486,6 +4525,7 @@ function importCSV(file){
       if(sheetKey){
         SHEETS[sheetKey]=rows;
         Object.keys(FILTERED).forEach(k=>FILTERED[k]=null);
+        _bustMemo();
         setStep('step-load','done',`โหลด ${rows.length} rows → ${KNOWN_SHEETS[sheetKey]}`);
         setStep('step-render','active','Render...');
         setTimeout(()=>{
@@ -5021,6 +5061,7 @@ async function fetchFromGAS(silent) {
     if (dslbl) dslbl.textContent = 'Google Sheets · ' + totalRows.toLocaleString();
 
     // Update data source indicator
+    _bustMemo();
     onDataLoaded('live', 'Google Sheets · ' + timeStr);
     // Re-render current page with real data
     renderPage(ST.page);
@@ -5389,6 +5430,95 @@ function openMonthlyReport(){
 
 
 } catch(e) { console.error('Dashboard init error:', e); }
+
+// ══════════════════════════════════════════════════
+// PWA: Register Service Worker + inject manifest
+// ══════════════════════════════════════════════════
+(function initPWA(){
+  // Inject manifest.json dynamically so it works as single-file
+  const manifestData = {
+    name: 'IT Command — Service Dashboard',
+    short_name: 'IT Dashboard',
+    description: 'IT Helpdesk, Jobs และ PM Dashboard',
+    start_url: './',
+    display: 'standalone',
+    orientation: 'landscape',
+    theme_color: '#1e40af',
+    background_color: '#0f172a',
+    icons: [
+      { src: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%231e40af"/><text y="70" x="50" text-anchor="middle" font-size="60" fill="white">📊</text></svg>', sizes: 'any', type: 'image/svg+xml' }
+    ]
+  };
+  const blob = new Blob([JSON.stringify(manifestData)], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  let link   = document.querySelector('link[rel="manifest"]');
+  if (!link) { link = document.createElement('link'); link.rel = 'manifest'; document.head.appendChild(link); }
+  link.href = url;
+
+  // Register Service Worker (only works from HTTPS or localhost)
+  if ('serviceWorker' in navigator) {
+    // Inline SW as blob URL — caches shell + CDN assets
+    const swCode = `
+const CACHE = 'it-dash-v1';
+const SHELL = ['./', './index.html'];
+const CDN   = [
+  'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js',
+  'https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap'
+];
+
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll([...SHELL, ...CDN]).catch(()=>{}))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(
+      keys.filter(k => k !== CACHE).map(k => caches.delete(k))
+    ))
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', e => {
+  // Network first for GAS (live data), cache first for everything else
+  const url = e.request.url;
+  if (url.includes('script.google.com') || url.includes('googleapis.com/macros')) {
+    e.respondWith(fetch(e.request).catch(() => new Response('[]', {headers:{'Content-Type':'application/json'}})));
+    return;
+  }
+  e.respondWith(
+    caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
+      if (res && res.status === 200 && e.request.method === 'GET') {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+      }
+      return res;
+    }))
+  );
+});`;
+
+    const swBlob = new Blob([swCode], {type:'text/javascript'});
+    const swUrl  = URL.createObjectURL(swBlob);
+    navigator.serviceWorker.register(swUrl, { scope: './' })
+      .then(reg => {
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              // New version available — show subtle toast
+              const t = document.getElementById('toast');
+              if (t) { t.textContent = '🔄 Dashboard อัปเดตแล้ว กด Refresh เพื่อโหลดเวอร์ชันใหม่'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 6000); }
+            }
+          });
+        });
+      })
+      .catch(e => { /* SW registration failed (e.g. file:// protocol) — silently ignore */ });
+  }
+})();
+
 
 // ── Explicit global exports (ensure onclick works) ──
 window.doLogin       = typeof doLogin       !== 'undefined' ? doLogin       : function(){};
