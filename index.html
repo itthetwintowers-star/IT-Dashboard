@@ -7,6 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="IT Dashboard"/>
+<link rel="manifest" id="pwa-manifest-link"/>
 <title>IT Service Dashboard</title>
 <script>window._chartJsLoaded=false;</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" onerror=""></script>
@@ -620,6 +621,7 @@ td{padding:10px 14px;color:var(--text);max-width:220px;overflow:hidden;text-over
   </nav>
 
   <div id="main">
+  <div id="sync-progress-bar" style="position:fixed;top:0;left:0;height:3px;width:0%;background:linear-gradient(90deg,var(--accent),var(--blue));z-index:9999;opacity:0;transition:width .3s ease,opacity .4s ease;pointer-events:none"></div>
     <header id="topbar">
       <button class="menu-btn" onclick="toggleSB()">
         <svg width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" stroke-width="2" stroke-linecap="round"/></svg>
@@ -640,6 +642,7 @@ td{padding:10px 14px;color:var(--text);max-width:220px;overflow:hidden;text-over
         <button onclick="exportPagePDF()" title="Export หน้านี้เป็น PDF" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);font-family:inherit;transition:all .15s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">
           📄 Export PDF
         </button>
+        <button id="pwa-install-btn" onclick="window._triggerPWAInstall&&window._triggerPWAInstall()" title="ติดตั้ง App" style="display:none;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r-sm);border:1px solid var(--accent);background:var(--accent);cursor:pointer;font-size:12px;font-weight:600;color:#fff;font-family:inherit">📲 ติดตั้ง App</button>
         <button onclick="openImport()" id="topbar-import-btn" title="นำเข้า Excel" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);font-family:inherit;transition:all .15s">
           📂 <span id="topbar-import-lbl">นำเข้า Excel</span>
         </button>
@@ -4983,13 +4986,20 @@ async function fetchFromGAS(silent) {
     const base = GAS.url + (GAS.url.includes('?') ? '&' : '?');
     const ts   = Date.now();
 
-    // Try combined first (?sheet=all), fallback to parallel per-sheet
+    // AbortController timeout (15s)
+    const _abort = new AbortController();
+    const _timer = setTimeout(() => _abort.abort(), 15000);
+
+    // Progress bar
+    const _prog = document.getElementById('sync-progress-bar');
+    if (_prog) { _prog.style.width = '10%'; _prog.style.opacity = '1'; }
+
     if(!silent) setConnStatus('testing', 'กำลังดึงข้อมูล...');
 
     let results;
     try {
       // Combined request — fastest if GAS handles it
-      const combRes = await fetch(base + 'sheet=all&v=' + ts, { cache:'no-store' });
+      const combRes = await fetch(base + 'sheet=all&v=' + ts, { cache:'no-store', signal: _abort.signal });
       if (!combRes.ok) throw new Error('HTTP ' + combRes.status);
       const combJson = await combRes.json();
       if (combJson.error) throw new Error(combJson.error);
@@ -5002,14 +5012,37 @@ async function fetchFromGAS(silent) {
     } catch(_combinedErr) {
       // Fallback: parallel per-sheet (avoids GAS 30s timeout on large data)
       if(!silent) setConnStatus('testing', 'กำลังดึงข้อมูล (parallel)...');
-      results = await Promise.all(
-        GAS_SHEETS.map(s =>
-          fetch(base + 'sheet=' + s.key + '&v=' + ts, { cache: 'no-store' })
+      // Priority: fetch cases first (shows Dashboard fastest), then rest in parallel
+      if (_prog) _prog.style.width = '30%';
+      const casesRes = await fetch(base + 'sheet=cases&v=' + ts, { cache:'no-store', signal:_abort.signal })
+        .then(r => r.json()).catch(() => []);
+      const casesKey = GAS_SHEETS.find(s=>s.key==='cases').sheet;
+      if (Array.isArray(casesRes) && casesRes.length) {
+        SHEETS[casesKey] = casesRes;
+        Object.keys(FILTERED).forEach(k=>FILTERED[k]=null);
+        _bustMemo();
+        if (_prog) _prog.style.width = '50%';
+        if(!silent) setConnStatus('testing', 'โหลด Cases แล้ว กำลังโหลดที่เหลือ...');
+        // Render dashboard immediately with cases data
+        if (ST.page === 'dashboard') setTimeout(()=>renderPage('dashboard'), 0);
+      }
+      if (_prog) _prog.style.width = '60%';
+      // Fetch remaining sheets in parallel
+      const remaining = GAS_SHEETS.filter(s => s.key !== 'cases');
+      results = [{ key: casesKey, data: casesRes }];
+      const restResults = await Promise.all(
+        remaining.map(s =>
+          fetch(base + 'sheet=' + s.key + '&v=' + ts, { cache: 'no-store', signal: _abort.signal })
             .then(r => { if(!r.ok) throw new Error('HTTP ' + r.status + ' (' + s.key + ')'); return r.json(); })
             .then(json => ({ key: s.sheet, data: json.error ? [] : (Array.isArray(json) ? json : []) }))
         )
       );
+      results = [...results, ...restResults];
+      if (_prog) _prog.style.width = '85%';
     }
+
+    clearTimeout(_timer);
+    if (_prog) { _prog.style.width = '100%'; setTimeout(() => { _prog.style.opacity='0'; _prog.style.width='0%'; }, 600); }
 
     let totalRows = 0;
     const today = new Date(); today.setHours(0,0,0,0);
@@ -5074,9 +5107,13 @@ async function fetchFromGAS(silent) {
     return true;
 
   } catch(err) {
+    clearTimeout(_timer);
+    const _prog2 = document.getElementById('sync-progress-bar');
+    if (_prog2) { _prog2.style.opacity='0'; _prog2.style.width='0%'; }
     GAS.fetching = false;
     GAS.connected = false;
-    const msg = '❌ ' + (err.message || 'Connection failed');
+    const isTimeout = err.name === 'AbortError';
+    const msg = isTimeout ? '⏱️ หมดเวลา (15s) — GAS Cold Start กรุณาลองใหม่' : '❌ ' + (err.message || 'Connection failed');
     setConnStatus('err', msg);
     if (dot) dot.classList.remove('pulse');
     if (txt) txt.textContent = 'Error';
@@ -5434,6 +5471,7 @@ function openMonthlyReport(){
 // ══════════════════════════════════════════════════
 // PWA: Register Service Worker + inject manifest
 // ══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function(){
 (function initPWA(){
   // Inject manifest.json dynamically so it works as single-file
   const manifestData = {
@@ -5446,16 +5484,42 @@ function openMonthlyReport(){
     theme_color: '#1e40af',
     background_color: '#0f172a',
     icons: [
-      { src: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%231e40af"/><text y="70" x="50" text-anchor="middle" font-size="60" fill="white">📊</text></svg>', sizes: 'any', type: 'image/svg+xml' }
+      { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAABvUlEQVR42u3SUQkAIBBEwWvgp38GMIWNrXgdBIXDgZdgd6L1KR0XJhBAAkgACSAJIAEkgASQBJAAEkACSAJIAAkgASQBJIAEkAASQBJAKgtorK1CASSABBBAAAEEEEACSAAJIIAAAkgACSABBBBAAAkgASSAAAIIIAEkgAQQQAABBBBAAkgAuQQggAACSAAJIAEEEEAACSABJIAAAgggASSABBBAAAEEEEACSAABBBBAAAEkgASQAAIIIIAEkAASQAABBJAAEkACCCCAABJAAkgAAQQQQAABJIAEkAACCCCABJAAEkAAAQSQABJAAggggAASQAJIAAEEEEAAASSABBBAAAEEEEACSAAJIIAAAkgACSABBBBAAAkgASSAAAIIIIAAEkACCCCAAAIIIAEkgAQQQAABJIAEkAACCCCABJAAEkAAAQSQABJAAggggAACCCABJIAEEEAAASSABJAAAggggASQABJAAAEEkAASQAIIIIAAAgggASSAAAIIIIAAEkACSAABBBBAAkgACSCAALoNSH8GkAASQAJIAEkACSABJIAkgASQABJAEkACSAAJIAkgASSABJAAkgDS8xIFrdMZjvq1xQAAAABJRU5ErkJggg==', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+      { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAIAAAB7GkOtAAAIe0lEQVR42u3VQQ0AIAwEwTrgyQ8BqKhjLPaPAUI6ySi4XLIx5gagoTABgAAAIAAACAAAAgCAAAAgAAAIAAACAIAAACAAAAgAAAIAgAAAIAAACAAAAgCAAAAgAAAIAAACAIAAACAAAAgAgAAAIAAACAAAAgCAAAAgAAAIAAACAIAAACAAAAgAAAIAgAAAIAAACAAAAgCAAAAgAAAIAAACAIAAACAAAAgAgABYAUAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAG4rDwATwiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACAAgAAIgAIAACIAAAAIgAAIACIAACAAgAAIgAIAACIAAAAIgAAIACIAACAAgAAIgAIAACIAAAAIgAAIACIAAuCAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAIgAAIACIAACAAgAAIgAIAACIAAAAIgAAIACIAACAAgAAIgAIAACIAAAAIgAAIACIAACAAgAAIgAIAACIAXAgIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACAAgAAIgAIAACIAAAAIgAAIACIAACAAgAAIgAIAACIAAAAIgAAIACIAACAAgAAIgAIAACIAAAAIgAAIACIAAeCEgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAIgAAIACIAACAAgAAIgAIAACIAAAAIgAAIACIAACAAgAAIgAIAACIAAAAIgAAIACIAACAAgAAIgAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIACAAAiAAgAAIgAAAAiAAAgAIgAAIACAAAiAAgAAIgAAAAiAAAgAIgAAIACAAAiAAgAAIgAAAAiAAAgAIgAAIACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAIAACIAAAAIgAAIACIAACAAgAAIgAIAACIAAAAIgAAIACIAACAAgAAIgAIAACIAAAAIgAAIACIAACAAgAAIgAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIACAAAiAAgAAIgAAAAiAAAgAIgAAIACAAAiAAgAAIgAAAAiAAAgAIgAAIACAAAiAAgAAIgAAAAiAAAgAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiACwICIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAgAAIgAAAAiAAAgAIgAAIACAAAiAAgAAIgAAAAiAAAgAIgAAIACAAAiAAgAAIgAAAAiAAAgAIgAAIACAAAiAAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAHghIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAgAAIAIAACACAAAgAIgAAIACAAAiAAgAAIgAAAAiAAAgAIgAAIACAAAiAAgAAIgAAAAiAAAgAIgAAIACAAAiAAgAAIgAAAAiAAAgAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAAIgAAACIAAAAiAAAACIAACAAiAAAgAIAACIACAAAiAAAACIAACAAiAAAgAIAACIACAAAgAAAIAgAAAIAAACAAAAgCAAAAgAAAIAAACACAAVgAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQBAAAAQAAAEAAABAEAAABAAAAQAAAEAQAAAEAAABAAAAQAQAAAEAAABAEAAABAAAAQAAAEA4DsF9P9rqH6JjFEAAAAASUVORK5CYII=', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
     ]
   };
   const blob = new Blob([JSON.stringify(manifestData)], {type:'application/json'});
   const url  = URL.createObjectURL(blob);
-  let link   = document.querySelector('link[rel="manifest"]');
-  if (!link) { link = document.createElement('link'); link.rel = 'manifest'; document.head.appendChild(link); }
-  link.href = url;
+  const link = document.getElementById('pwa-manifest-link') || document.querySelector('link[rel="manifest"]');
+  if (link) link.href = url;
 
   // Register Service Worker (only works from HTTPS or localhost)
+  // Capture install prompt
+  let _installPrompt = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    _installPrompt = e;
+    // Show install button in topbar
+    const btn = document.getElementById('pwa-install-btn');
+    if (btn) btn.style.display = 'flex';
+  });
+  window.addEventListener('appinstalled', () => {
+    const btn = document.getElementById('pwa-install-btn');
+    if (btn) btn.style.display = 'none';
+    _installPrompt = null;
+  });
+  window._triggerPWAInstall = function(){
+    if (!_installPrompt) { alert('เปิดหน้านี้บน Chrome และรอสักครู่ แล้วลองใหม่'); return; }
+    _installPrompt.prompt();
+    _installPrompt.userChoice.then(r => {
+      if (r.outcome === 'accepted') {
+        const btn = document.getElementById('pwa-install-btn');
+        if (btn) btn.style.display = 'none';
+      }
+      _installPrompt = null;
+    });
+  };
+
   if ('serviceWorker' in navigator) {
     // Inline SW as blob URL — caches shell + CDN assets
     const swCode = `
@@ -5518,6 +5582,7 @@ self.addEventListener('fetch', e => {
       .catch(e => { /* SW registration failed (e.g. file:// protocol) — silently ignore */ });
   }
 })();
+}); // end DOMContentLoaded
 
 
 // ── Explicit global exports (ensure onclick works) ──
