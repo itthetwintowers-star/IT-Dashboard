@@ -4977,7 +4977,7 @@ async function fetchFromGAS(silent) {
 
   // Declared outside try/catch so both blocks can access
   let _abort = new AbortController();
-  let _timer = setTimeout(() => _abort.abort(), 15000);
+  let _timer = setTimeout(() => _abort.abort(), 30000);
   const _prog = document.getElementById('sync-progress-bar');
   if (_prog) { _prog.style.width = '10%'; _prog.style.opacity = '1'; }
 
@@ -4992,50 +4992,40 @@ async function fetchFromGAS(silent) {
     const base = GAS.url + (GAS.url.includes('?') ? '&' : '?');
     const ts   = Date.now();
 
-    let results;
+    // ── Step 1: Priority fetch — Cases first ──
+    if (_prog) _prog.style.width = '30%';
+    const casesKey = GAS_SHEETS.find(s=>s.key==='cases').sheet;
+    let casesData = [];
     try {
-      // Combined request — fastest if GAS handles it
-      const combRes = await fetch(base + 'sheet=all&v=' + ts, { cache:'no-store', signal: _abort.signal });
-      if (!combRes.ok) throw new Error('HTTP ' + combRes.status);
-      const combJson = await combRes.json();
-      if (combJson.error) throw new Error(combJson.error);
-      // Map combined response to results array
-      const raw = (combJson.data && typeof combJson.data === 'object') ? combJson.data : combJson;
-      results = GAS_SHEETS.map(s => {
-        const data = raw[s.key] || raw[s.sheet] || [];
-        return { key: s.sheet, data: Array.isArray(data) ? data : [] };
-      });
-    } catch(_combinedErr) {
-      // Fallback: parallel per-sheet (avoids GAS 30s timeout on large data)
-      if(!silent) setConnStatus('testing', 'กำลังดึงข้อมูล (parallel)...');
-      // Priority: fetch cases first (shows Dashboard fastest), then rest in parallel
-      if (_prog) _prog.style.width = '30%';
-      const casesRes = await fetch(base + 'sheet=cases&v=' + ts, { cache:'no-store', signal:_abort.signal })
-        .then(r => r.json()).catch(() => []);
-      const casesKey = GAS_SHEETS.find(s=>s.key==='cases').sheet;
-      if (Array.isArray(casesRes) && casesRes.length) {
-        SHEETS[casesKey] = casesRes;
-        Object.keys(FILTERED).forEach(k=>FILTERED[k]=null);
-        _bustMemo();
-        if (_prog) _prog.style.width = '50%';
-        if(!silent) setConnStatus('testing', 'โหลด Cases แล้ว กำลังโหลดที่เหลือ...');
-        // Render dashboard immediately with cases data
-        if (ST.page === 'dashboard') setTimeout(()=>renderPage('dashboard'), 0);
-      }
-      if (_prog) _prog.style.width = '60%';
-      // Fetch remaining sheets in parallel
-      const remaining = GAS_SHEETS.filter(s => s.key !== 'cases');
-      results = [{ key: casesKey, data: casesRes }];
-      const restResults = await Promise.all(
-        remaining.map(s =>
-          fetch(base + 'sheet=' + s.key + '&v=' + ts, { cache: 'no-store', signal: _abort.signal })
-            .then(r => { if(!r.ok) throw new Error('HTTP ' + r.status + ' (' + s.key + ')'); return r.json(); })
-            .then(json => ({ key: s.sheet, data: json.error ? [] : (Array.isArray(json) ? json : []) }))
-        )
-      );
-      results = [...results, ...restResults];
-      if (_prog) _prog.style.width = '85%';
+      const r = await fetch(base + 'sheet=cases&v=' + ts, { cache:'no-store' });
+      if (r.ok) casesData = await r.json();
+    } catch(e) { if(e.name==='AbortError') throw e; /* re-throw timeout */ }
+
+    if (Array.isArray(casesData) && casesData.length) {
+      SHEETS[casesKey] = casesData;
+      Object.keys(FILTERED).forEach(k=>FILTERED[k]=null);
+      _bustMemo();
+      if (_prog) _prog.style.width = '50%';
+      if(!silent) setConnStatus('testing', 'Cases โหลดแล้ว กำลังโหลดที่เหลือ...');
+      if (ST.page === 'dashboard') setTimeout(()=>renderPage('dashboard'), 0);
     }
+
+    // ── Step 2: Remaining sheets in parallel (fresh AbortController) ──
+    if (_prog) _prog.style.width = '60%';
+    const remaining = GAS_SHEETS.filter(s => s.key !== 'cases');
+    const restResults = await Promise.all(
+      remaining.map(s =>
+        fetch(base + 'sheet=' + s.key + '&v=' + ts, { cache:'no-store' })
+          .then(r => r.ok ? r.json() : Promise.reject('HTTP '+r.status))
+          .then(json => ({ key: s.sheet, data: Array.isArray(json) ? json : [] }))
+          .catch(e => {
+            if(e && e.name==='AbortError') throw e;
+            return { key: s.sheet, data: [] };
+          })
+      )
+    );
+    if (_prog) _prog.style.width = '85%';
+    const results = [{ key: casesKey, data: casesData }, ...restResults];
 
     clearTimeout(_timer);
     if (_prog) { _prog.style.width = '100%'; setTimeout(() => { _prog.style.opacity='0'; _prog.style.width='0%'; }, 600); }
@@ -5108,11 +5098,19 @@ async function fetchFromGAS(silent) {
     GAS.fetching = false;
     GAS.connected = false;
     const isTimeout = err.name === 'AbortError';
-    const msg = isTimeout ? '⏱️ หมดเวลา (15s) — GAS Cold Start กรุณาลองใหม่' : '❌ ' + (err.message || 'Connection failed');
+    if (isTimeout && silent) {
+      // Auto-refresh timeout — reset quietly, will retry next interval
+      GAS.fetching = false;
+      if (dot) dot.classList.remove('pulse');
+      if (txt) txt.textContent = 'Live';
+      return false;
+    }
+    const msg = isTimeout
+      ? '⏱️ หมดเวลา (30s) — GAS Cold Start กรุณาลองใหม่อีกครั้ง'
+      : '❌ ' + (err.message || 'Connection failed');
     setConnStatus('err', msg);
     if (dot) dot.classList.remove('pulse');
-    if (txt) txt.textContent = 'Error';
-    console.error('GAS fetch error:', err);
+    if (txt) txt.textContent = 'Timeout';
 
     // Show error banner (only if not silent to avoid spam)
     if (!silent) {
