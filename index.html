@@ -4975,6 +4975,12 @@ async function fetchFromGAS(silent) {
   if (txt) txt.textContent = 'Syncing…';
   if (!silent) setConnStatus('testing', 'กำลังดึงข้อมูล...');
 
+  // Declared outside try/catch so both blocks can access
+  let _abort = new AbortController();
+  let _timer = setTimeout(() => _abort.abort(), 15000);
+  const _prog = document.getElementById('sync-progress-bar');
+  if (_prog) { _prog.style.width = '10%'; _prog.style.opacity = '1'; }
+
   try {
     // Fetch 4 sheets in parallel — avoids GAS 30s timeout on large datasets
     const GAS_SHEETS = [
@@ -4985,16 +4991,6 @@ async function fetchFromGAS(silent) {
     ];
     const base = GAS.url + (GAS.url.includes('?') ? '&' : '?');
     const ts   = Date.now();
-
-    // AbortController timeout (15s)
-    const _abort = new AbortController();
-    const _timer = setTimeout(() => _abort.abort(), 15000);
-
-    // Progress bar
-    const _prog = document.getElementById('sync-progress-bar');
-    if (_prog) { _prog.style.width = '10%'; _prog.style.opacity = '1'; }
-
-    if(!silent) setConnStatus('testing', 'กำลังดึงข้อมูล...');
 
     let results;
     try {
@@ -5108,8 +5104,7 @@ async function fetchFromGAS(silent) {
 
   } catch(err) {
     clearTimeout(_timer);
-    const _prog2 = document.getElementById('sync-progress-bar');
-    if (_prog2) { _prog2.style.opacity='0'; _prog2.style.width='0%'; }
+    if (_prog) { _prog.style.opacity='0'; _prog.style.width='0%'; }
     GAS.fetching = false;
     GAS.connected = false;
     const isTimeout = err.name === 'AbortError';
