@@ -1610,19 +1610,52 @@ function toggleDailyType(type){
 }
 
 // Job type colors (fixed palette for consistency)
-const JOB_TYPE_COLORS = {
+// Base colors for known types — ใช้ fallback palette สำหรับ type ใหม่
+const JOB_TYPE_COLORS_BASE = {
   'Daily':            '#4f6ef7',
   'Project':          '#8b5cf6',
   'PM':               '#14b8a6',
   'Incident':         '#ef4444',
   'Service Request':  '#f59e0b',
+  'Customer Request': '#f97316',
   'Training':         '#22c55e',
   'Admin':            '#ec4899',
   'Backup':           '#06b6d4',
   'Scheduled Task':   '#a16207',
 };
-// All known job types (including new ones)
-const ALL_JOB_TYPES = ['Daily','Project','PM','Incident','Service Request','Training','Admin','Backup','Scheduled Task'];
+// Fallback color palette for unknown types (auto-assigned)
+const _TYPE_FALLBACK_COLORS = [
+  '#6366f1','#a855f7','#10b981','#f43f5e','#0ea5e9',
+  '#84cc16','#fb923c','#e879f9','#2dd4bf','#fbbf24'
+];
+let _typeFallbackIdx = 0;
+const _typeFallbackMap = {};
+
+// JOB_TYPE_COLORS — returns color for any type, auto-assigns for unknown ones
+const JOB_TYPE_COLORS = new Proxy(JOB_TYPE_COLORS_BASE, {
+  get(target, key) {
+    if (key in target) return target[key];
+    if (typeof key !== 'string') return undefined;
+    if (!(key in _typeFallbackMap)) {
+      _typeFallbackMap[key] = _TYPE_FALLBACK_COLORS[_typeFallbackIdx % _TYPE_FALLBACK_COLORS.length];
+      _typeFallbackIdx++;
+    }
+    return _typeFallbackMap[key];
+  }
+});
+
+// ALL_JOB_TYPES — ดึงจากข้อมูลจริงใน Excel/GAS อัตโนมัติ
+// Known types อยู่ด้านหน้า, type ใหม่จาก data ต่อท้าย (เรียงตัวอักษร)
+const KNOWN_JOB_TYPES = ['Daily','Project','PM','Incident','Service Request','Customer Request','Training','Admin','Backup','Scheduled Task'];
+function getJobTypes() {
+  const rows = SHEETS.ITJob_History || [];
+  const fromData = [...new Set(rows.map(r => r.FTTypeJob).filter(Boolean))];
+  const known = KNOWN_JOB_TYPES.filter(t => fromData.includes(t));
+  const extra = fromData.filter(t => !KNOWN_JOB_TYPES.includes(t)).sort();
+  return known.length ? [...known, ...extra] : (fromData.length ? fromData : KNOWN_JOB_TYPES);
+}
+// ALL_JOB_TYPES เป็น getter — อ่านค่าสดจากข้อมูลทุกครั้ง
+Object.defineProperty(window, 'ALL_JOB_TYPES', { get: getJobTypes });
 
 function renderITJobCharts(rows){
   const C=ct(), P=pal();
